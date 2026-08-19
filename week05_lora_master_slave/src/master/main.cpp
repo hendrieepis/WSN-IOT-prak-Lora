@@ -4,8 +4,8 @@
   Environment PlatformIO: master
 
   Topologi Master-Slave dengan 3 node:
-    - 1 Master (COM3) : polling Slave 1 & Slave 2 secara bergantian
-    - 2 Slave  (COM4, COM5) : hanya merespon saat dipanggil
+    - 1 Master (env master) : polling Slave 1 & Slave 2 secara bergantian
+    - 2 Slave  (env slave1, slave2) : hanya merespon saat dipanggil
 
   Mekanisme:
     TX : blocking (endPacket) — sederhana dan andal di AVR

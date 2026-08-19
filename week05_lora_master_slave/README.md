@@ -172,7 +172,7 @@ python3 lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyACM
 python3 lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyACM2 --out sesi1.csv
 ```
 
-Berkas `lora_session_20260516_071007.csv` adalah contoh keluarannya, berguna untuk melihat format kolom sebelum merekam sesi sendiri.
+Berkas `lora_session_20260516_071007.csv` adalah contoh keluarannya, berguna untuk melihat format kolom sebelum merekam sesi sendiri. Rekaman itu diambil dengan revisi firmware terdahulu, sehingga baris pembukanya masih mencetak nama port Windows (`Peran: MASTER (COM3)`) — firmware sekarang mencetak nama environment PlatformIO. Isi dan format kolomnya tetap sama.
 
 **Pre-flight checklist**
 

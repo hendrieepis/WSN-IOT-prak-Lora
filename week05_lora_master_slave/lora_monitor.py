@@ -409,7 +409,7 @@ def build_layout(shared: SharedState, csv_path: str):
 BANNER = """\
 ╔══════════════════════════════════════════════════════════════════════╗
 ║           LoRa Master-Slave Monitor — Evaluasi Praktikum            ║
-║      Dragino LoRa Shield v1.2 · SX1276 · Arduino Uno · 920 MHz     ║
+║      Dragino LoRa Shield v1.2 · SX1276 · Arduino Uno · 433 MHz     ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
   Tool ini membaca data serial dari 3 node LoRa secara bersamaan dan
@@ -432,8 +432,8 @@ BANNER = """\
     python lora_monitor.py
         → Jalankan dengan port & baud rate default
 
-    python lora_monitor.py --master COM3 --s1 COM4 --s2 COM5
-        → Tentukan port secara eksplisit
+    python lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyACM2
+        → Tentukan port secara eksplisit (Windows: COM3, COM4, COM5)
 
     python lora_monitor.py --out data_jarak_10m.csv
         → Simpan log ke nama file tertentu
@@ -462,7 +462,7 @@ def parse_args():
         epilog=(
             "Contoh penggunaan:\n"
             f"  python lora_monitor.py\n"
-            f"  python lora_monitor.py --master COM3 --s1 COM4 --s2 COM5\n"
+            f"  python lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyACM2\n"
             f"  python lora_monitor.py --out data_eksperimen.csv\n"
             f"  python lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyUSB0 --out hasil.csv\n"
         ),

@@ -22,8 +22,8 @@ kedua board kembali ke nol setiap kali monitor dijalankan — jalankan monitor
 lebih dahulu, baru mulai mengukur, dan jangan membukanya di tengah percobaan
 panjang.
 
-Berbeda dengan board ESP32 pada lab WSN-IOT-prak, di sini DTR tidak tersambung
-ke tombol mana pun, sehingga tidak ada risiko tombol terbaca tertekan.
+Pada Uno, DTR hanya menyentuh jalur RESET dan tidak tersambung ke GPIO mana pun,
+sehingga membuka port tidak pernah membuat sebuah pin terbaca seolah ditekan.
 """
 import argparse
 import re

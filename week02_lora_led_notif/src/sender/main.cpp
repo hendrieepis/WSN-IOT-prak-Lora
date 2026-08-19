@@ -1,6 +1,5 @@
 /*
   LoRa Sender + LED Notif - Dragino LoRa Shield v1.2 + Arduino Uno
-  Diadaptasi dari: 02a-sender-uart-LEDNotif (Heltec HTITTracker SX1262)
   Library : LoRa by sandeepmistry v0.8.x
   Environment PlatformIO: sender
 
