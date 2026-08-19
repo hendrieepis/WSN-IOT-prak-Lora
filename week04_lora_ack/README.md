@@ -100,7 +100,7 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 | No | Peralatan | Spesifikasi | Jumlah |
 |---|---|---|---|
 | 1 | Arduino Uno | ATmega328P | 2 |
-| 2 | Dragino LoRa Shield | v1.2, SX1276, 920 MHz | 2 |
+| 2 | Dragino LoRa Shield | v1.2, SX1276, 433 MHz | 2 |
 | 3 | Antena SMA | **wajib terpasang sebelum diberi daya** | 2 |
 | 4 | Kabel USB tipe B | kabel data | 2 |
 
@@ -109,6 +109,8 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 ```
 week04_lora_ack/
 ├── platformio.ini
+├── monitor_serial.py       ← pantau kedua sisi, pisahkan DATA hilang vs ACK hilang
+├── logserial.md            ← log referensi hasil uji perangkat
 └── src/
     ├── sender/main.cpp     ← kirim DATA:n, tunggu ACK:n, hitung OK/FAIL
     └── receiver/main.cpp   ← terima DATA:n, balas ACK:n, abaikan paket lain
@@ -120,6 +122,29 @@ week04_lora_ack/
 pio run -d week04_lora_ack -e receiver -t upload -t monitor
 pio run -d week04_lora_ack -e sender   -t upload -t monitor
 ```
+
+**Memantau kedua board sekaligus**
+
+Tabel B bagian Pengukuran menuntut pembandingan penghitung kedua sisi. Skrip `monitor_serial.py` melakukannya otomatis, dan memisahkan dua jenis kegagalan yang akibatnya berbeda: DATA yang tidak pernah tiba, dan DATA yang tiba tetapi ACK-nya hilang di jalan pulang.
+
+```bash
+python3 week04_lora_ack/monitor_serial.py
+python3 week04_lora_ack/monitor_serial.py --durasi 60 --log sesi1.txt
+```
+
+```
+  DATA dikirim pengirim  : 14  (nomor 0..13)
+  DATA tiba di penerima  : 14
+  ACK dibalas penerima   : 14
+  ACK kembali ke pengirim: 14
+  DATA hilang            : 0 (0.0 %)
+  DATA tiba tapi ACK hilang: 0 (0.0 %)
+  Keberhasilan menurut pengirim : 100.0 %
+  Keberhasilan menurut penerima : 100.0 %
+  Waktu DATA->ACK min/maks/rata-rata : 0 / 201 / 143 ms
+```
+
+> **Jangan memantau port board yang hendak diunggah.** Monitor menahan port itu, sehingga `pio run -t upload` gagal membukanya. Saat menguji EXP-02, pantau pengirim saja dan biarkan port penerima bebas.
 
 **Pre-flight checklist**
 
@@ -139,7 +164,7 @@ Unggah kedua firmware sesuai urutan dan amati sepuluh siklus pertama.
 ```
 === LoRa ACK SENDER ===
 Init LoRa ... OK
-Freq: 920.00 MHz | SF7 | ACK timeout: 3000 ms
+Freq: 433.00 MHz | SF7 | ACK timeout: 3000 ms
 
 [TX] Kirim: DATA:0 ... selesai
 [RX] Balasan: ACK:0
@@ -213,7 +238,19 @@ Uji apa yang terjadi ketika balasan tidak sesuai harapan.
 
 > **CHECKPOINT** — Uji 03-c adalah yang paling membuka mata. Karena tidak ada alamat sama sekali pada LoRa mentah, ACK dari pasangan board lain berpotensi diterima. Pencocokan nomor urut menahan sebagian besar di antaranya, tetapi tidak seluruhnya — dan itulah alasan M05 memperkenalkan penomoran node.
 
-### Verifikasi build (referensi)
+### Verifikasi hardware (log referensi)
+
+Dijalankan pada dua Arduino Uno bershield Dragino LoRa v1.2, 433 MHz, jarak ±30 cm. Log lengkap ada di `logserial.md`.
+
+| Parameter | Hasil terukur |
+|---|---|
+| Keberhasilan (45 detik, jarak dekat) | 14/14 — **100 %** di kedua sisi |
+| Waktu DATA→ACK min/maks/rata-rata | 0 / 201 / **143 ms** (4,8 % dari timeout) |
+| Selang `[TX]` → `[FAIL]` saat penerima mati | **3,05 s** — sesuai `ACK_TIMEOUT` |
+| Lama siklus sehat vs gagal | **3,10 s vs 6,03 s** — satu kegagalan menggandakannya |
+| Pemulihan setelah penerima kembali | 1 siklus (3,1 s) |
+| EXP-03a/03b: balasan bernomor salah | tiba, dibaca, **ditolak**; pengirim tetap menunggu sampai timeout |
+| EXP-03c: pasangan board lain | belum diuji — hanya dua shield berfungsi |
 
 ```
 Environment    Status    Flash

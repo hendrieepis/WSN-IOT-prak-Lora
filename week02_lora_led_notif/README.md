@@ -79,7 +79,7 @@ Setelah menyelesaikan modul ini, praktikan mampu:
         BOARD #1                                  BOARD #2
   +------------------+                      +------------------+
   |   Arduino Uno    |                      |   Arduino Uno    |
-  | + LoRa Shield    |  ~~~~ 920 MHz ~~~~>  | + LoRa Shield    |
+  | + LoRa Shield    |  ~~~~ 433 MHz ~~~~>  | + LoRa Shield    |
   |     SENDER       |     satu arah        |    RECEIVER      |
   | LED 150 ms       |                      | LED 200 ms       |
   | setelah TX       |                      | interrupt DIO0   |
@@ -99,7 +99,7 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 | No | Peralatan | Spesifikasi | Jumlah |
 |---|---|---|---|
 | 1 | Arduino Uno | ATmega328P | 2 |
-| 2 | Dragino LoRa Shield | v1.2, SX1276, 920 MHz | 2 |
+| 2 | Dragino LoRa Shield | v1.2, SX1276, 433 MHz | 2 |
 | 3 | Antena SMA | **wajib terpasang sebelum diberi daya** | 2 |
 | 4 | LED + resistor 220 Ω | opsional, untuk indikator bersih di D3 | 2 |
 | 5 | Kabel USB tipe B | kabel data | 2 |
@@ -119,6 +119,8 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 ```
 week02_lora_led_notif/
 ├── platformio.ini
+├── monitor_serial.py       ← pantau TX & RX sekaligus, ringkas loss/RSSI/SNR
+├── logserial.md            ← log referensi hasil uji perangkat
 └── src/
     ├── sender/main.cpp     ← kirim + kedip LED setelah TX
     └── receiver/main.cpp   ← interrupt DIO0, rxFlag, kedip LED saat RX
@@ -130,6 +132,25 @@ week02_lora_led_notif/
 pio run -d week02_lora_led_notif -e receiver -t upload -t monitor
 pio run -d week02_lora_led_notif -e sender   -t upload -t monitor
 ```
+
+**Memantau kedua board sekaligus**
+
+Percobaan inti modul ini (EXP-03) menuntut pembandingan jumlah paket hilang antara dua firmware penerima. Menghitungnya dari dua jendela terpisah rawan salah, karena tiap jendela punya sumbu waktu sendiri. Skrip `monitor_serial.py` menggabungkan keduanya dan langsung meringkas hasil ukurnya:
+
+```bash
+python3 week02_lora_led_notif/monitor_serial.py
+python3 week02_lora_led_notif/monitor_serial.py --durasi 40 --log sesi1.txt
+```
+
+```
+  Paket dikirim  : 9  (nomor 0..8)
+  Paket diterima : 9  (nomor 0..8)
+  Paket hilang   : 0 (0.0 %)
+  RSSI  min/maks/rata-rata : -38 / -38 / -38.0 dBm
+  SNR   min/maks/rata-rata : 9.00 / 9.50 / 9.28 dB
+```
+
+> **Membuka monitor me-reset kedua board.** Pada Arduino Uno, DTR terhubung ke pin RESET, sehingga penghitung paket kembali ke nol setiap monitor dijalankan. Jalankan monitor lebih dahulu, baru mulai mengukur.
 
 **Pre-flight checklist**
 
@@ -149,7 +170,7 @@ Unggah kedua firmware dan amati aliran data seperti pada M01.
 ```
 === LoRa RECEIVER (Dragino) ===
 Init LoRa ... OK
-Freq: 920.00 MHz | BW: 125.00 kHz | SF7
+Freq: 433.00 MHz | BW: 125.00 kHz | SF7
 Menunggu paket (non-blocking)...
 
 ================================
@@ -204,9 +225,40 @@ Unggah ulang, amati 2 menit, lalu ulangi percobaan yang sama pada penerima **M01
 | M02 (interrupt) + `delay(1500)` | | | |
 | M01 (polling) + `delay(1500)` | | | |
 
-> **CHECKPOINT** — Penerima M02 tetap menangkap sebagian besar paket meskipun `loop()` sibuk, sedangkan penerima M01 kehilangan hampir semuanya. Selisih inilah nilai sesungguhnya dari mekanisme interrupt. Hapus `delay()` setelah percobaan selesai.
+Gunakan **pengirim yang sama** untuk kedua pengukuran, dan ganti firmware penerimanya saja — dengan begitu satu-satunya variabel adalah mekanisme penerimaan.
 
-### Verifikasi build (referensi)
+> **CHECKPOINT** — Penerima M02 tetap menangkap **seluruh** paket pada `delay(1500)`, sedangkan penerima M01 kehilangan hampir semuanya. Selisih inilah nilai sesungguhnya dari mekanisme interrupt. Hapus `delay()` setelah percobaan selesai.
+
+**Angka rujukan** (hasil ukur nyata, 40 detik per baris, pengirim tiap 2 detik — lihat `logserial.md`):
+
+| `delay()` di `loop()` | M02 interrupt | M01 polling |
+|---|---|---|
+| 0 ms | 0 % | 0 % |
+| 500 ms | **0 %** | 68,4 % |
+| 1500 ms | **0 %** | 94,7 % |
+| 3000 ms | 42,1 % | 100 % |
+
+Perhatikan bahwa interrupt pun akhirnya runtuh, dan batasnya dapat dihitung: penahanan 3000 ms melampaui interval kirim 2000 ms, sehingga paket baru tiba sebelum paket sebelumnya diambil dan `LoRa.receive()` dipanggil ulang — SX1276 hanya menyimpan satu paket pada satu waktu. Interrupt memindahkan pemberitahuan ke perangkat keras, tetapi tidak membuat penerima kebal.
+
+### Verifikasi hardware (log referensi)
+
+Dijalankan pada dua Arduino Uno bershield Dragino LoRa v1.2, 433 MHz, jarak ±30 cm. Log lengkap ada di `logserial.md`.
+
+```
+[   1.813] RX | Init LoRa ... OK
+[   1.813] RX | Freq: 433.00 MHz | BW: 125.00 kHz | SF7
+[   2.013] RX | [RX] Pesan : Hello #0
+[   2.013] RX | [RX] RSSI  : -38 dBm
+[   2.022] TX | [TX] Kirim: "Hello #0" ... OK
+```
+
+| Parameter | Hasil terukur |
+|---|---|
+| Paket dikirim / diterima (20 s) | 9 / 9 (loss 0 %) |
+| RSSI rata-rata | −38,0 dBm |
+| SNR rata-rata | 9,28 dB |
+| EXP-03 pada `delay(1500)` | interrupt 0 % vs polling 94,7 % hilang |
+| EXP-02 (pengamatan LED) | belum diverifikasi — bersifat visual, tidak terekam serial |
 
 ```
 Environment    Status    Flash

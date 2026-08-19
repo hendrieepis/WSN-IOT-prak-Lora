@@ -100,7 +100,7 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 | No | Peralatan | Spesifikasi | Jumlah |
 |---|---|---|---|
 | 1 | Arduino Uno | ATmega328P | 2 |
-| 2 | Dragino LoRa Shield | v1.2, SX1276, 920 MHz | 2 |
+| 2 | Dragino LoRa Shield | v1.2, SX1276, 433 MHz | 2 |
 | 3 | Antena SMA | **wajib terpasang sebelum diberi daya** | 2 |
 | 4 | Kabel USB tipe B | kabel data | 2 |
 
@@ -109,6 +109,8 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 ```
 week03_lora_p2p/
 ├── platformio.ini          ← peran ditentukan build flag -DDEVICE_A
+├── monitor_serial.py       ← pantau kedua peer, ringkas siklus/retry/RTT
+├── logserial.md            ← log referensi hasil uji perangkat
 └── src/
     └── peer/main.cpp       ← satu source untuk kedua board
 ```
@@ -119,6 +121,25 @@ week03_lora_p2p/
 pio run -d week03_lora_p2p -e deviceb -t upload -t monitor
 pio run -d week03_lora_p2p -e devicea -t upload -t monitor
 ```
+
+**Memantau kedua peer sekaligus**
+
+Waktu pulang-pergi tidak dapat diukur dari dua jendela terpisah, karena tiap jendela punya sumbu waktunya sendiri. Skrip `monitor_serial.py` menggabungkan keduanya dan langsung menghitung siklus, retry, serta waktu pulang-pergi:
+
+```bash
+python3 week03_lora_p2p/monitor_serial.py
+python3 week03_lora_p2p/monitor_serial.py --durasi 30 --log sesi1.txt
+```
+
+```
+  A       kirim 79   terima 78   retry 0
+          RSSI min/maks/rata-rata : -46 / -40 / -40.2 dBm
+  B       kirim 78   terima 78   retry 0
+  Siklus Ping-Pong selesai : 156
+  Waktu pulang-pergi min/maks/rata-rata : 200 / 401 / 220 ms
+```
+
+> **Jangan memantau port board yang hendak diunggah.** Monitor menahan port itu, sehingga `pio run -t upload` tidak dapat membukanya dan unggahan gagal tanpa pesan yang jelas. Saat menguji EXP-03, pantau node yang **diamati** saja dan biarkan port node yang dimatikan-hidupkan tetap bebas.
 
 **Pre-flight checklist**
 
@@ -138,7 +159,7 @@ Unggah kedua firmware sesuai urutan, lalu amati kedua Serial Monitor bersamaan.
 ```
 === LoRa PEER-TO-PEER ===
 Init LoRa ... OK
-Freq  : 920.00 MHz
+Freq  : 433.00 MHz
 Peran : INITIATOR (Device A)
 
 [TX] DeviceA:Ping
@@ -198,9 +219,27 @@ Uji perilaku sistem ketika salah satu pihak menghilang.
 | Apakah percakapan pulih tanpa mereset Device A? | |
 | Apakah percakapan pulih tanpa mereset Device B? | |
 
-> **CHECKPOINT** — Skenario 3 adalah yang paling penting. Ketika **initiator** yang hilang, Device B akan diam selamanya tanpa satu pun pesan kesalahan: ia memang dirancang hanya membalas. Catat berapa lama keadaan itu bertahan, dan kaitkan dengan pertanyaan nomor 4 pada bagian Analisis.
+> **CHECKPOINT** — Skenario 3 adalah yang paling penting. Ketika **initiator** yang hilang, Device B diam selamanya tanpa satu pun pesan kesalahan: ia memang dirancang hanya membalas. Pada pengujian rujukan, B mencetak **nol baris** selama 23,5 detik tanpa initiator — dari sisi B, "lawan bicara mati" tidak dapat dibedakan dari "belum ada yang mengajak bicara". Catat berapa lama keadaan itu bertahan, lalu kaitkan dengan pertanyaan nomor 4 pada bagian Analisis.
 
-### Verifikasi build (referensi)
+**Angka rujukan** (hasil ukur nyata, lihat `logserial.md`):
+
+| Yang hilang | Terdeteksi? | Gejala | Waktu pemulihan |
+|---|---|---|---|
+| Responder (B) | ya | `[RETRY]` tiap 5,04 s | 4,86 s — dibatasi `PING_INTERVAL` |
+| Initiator (A) | **tidak** | B diam total, 0 baris | 1,1 s setelah A kembali |
+
+### Verifikasi hardware (log referensi)
+
+Dijalankan pada dua Arduino Uno bershield Dragino LoRa v1.2, 433 MHz, jarak ±30 cm. Log lengkap ada di `logserial.md`.
+
+| Parameter | Hasil terukur |
+|---|---|
+| Siklus Ping-Pong (30 detik) | **156** — ±5,2 siklus/detik |
+| Waktu pulang-pergi min/maks/rata-rata | 200 / 401 / **220 ms** |
+| Retry selama percakapan normal | **0** |
+| RSSI di A / di B (rata-rata) | −40,2 / −40,7 dBm — tautan hampir simetris |
+| Responder hilang → terdeteksi? | ya, `[RETRY]` tiap 5,04 s; pulih 4,86 s |
+| **Initiator hilang → terdeteksi?** | **tidak — responder diam total, 0 baris selama 23,5 detik** |
 
 ```
 Environment    Status    Flash

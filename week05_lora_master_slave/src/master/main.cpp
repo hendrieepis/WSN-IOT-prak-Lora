@@ -25,7 +25,7 @@
 #define DIO0_PIN          2
 #define LED_PIN          LED_BUILTIN
 
-#define FREQUENCY        920E6
+#define FREQUENCY        433E6
 #define BANDWIDTH        125E3
 #define SPREADING_FACTOR 7
 #define CODING_RATE      5
@@ -109,8 +109,8 @@ void setup() {
   Serial.print(F("Freq: ")); Serial.print(FREQUENCY / 1E6); Serial.println(F(" MHz"));
   Serial.print(F("SF")); Serial.print(SPREADING_FACTOR);
   Serial.print(F(" | BW: ")); Serial.print(BANDWIDTH / 1E3); Serial.println(F(" kHz"));
-  Serial.println(F("Peran: MASTER (COM3)"));
-  Serial.println(F("Slave: COM4 (S1) & COM5 (S2)"));
+  Serial.println(F("Peran: MASTER (env master)"));
+  Serial.println(F("Slave: env slave1 (S1) & slave2 (S2)"));
   Serial.println();
 }
 

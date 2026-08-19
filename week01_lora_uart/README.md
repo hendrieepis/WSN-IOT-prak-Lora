@@ -52,7 +52,7 @@ Teori dibatasi pada apa yang dipakai di percobaan.
 |---|---|
 | LoRa | Teknik modulasi *chirp spread spectrum* untuk jangkauan jauh dengan laju data rendah. Modul ini memakai LoRa mentah, bukan LoRaWAN. |
 | SX1276 | Chip radio pada shield Dragino, dikendalikan mikrokontroler lewat SPI. |
-| Frekuensi kerja | Kanal radio yang dipakai. Program disetel **920 MHz**; kedua board wajib sama persis. |
+| Frekuensi kerja | Kanal radio yang dipakai. Program disetel **433 MHz** sesuai shield yang dipakai di lab ini; kedua board wajib sama persis. |
 | Spreading Factor (SF) | Lama satu simbol. SF besar menambah jangkauan dan ketahanan, tetapi memperlambat data dan memperpanjang waktu udara. Modul ini memakai SF7. |
 | Bandwidth (BW) | Lebar kanal. Semakin sempit semakin sensitif, tetapi semakin lambat. Modul ini memakai 125 kHz. |
 | Coding Rate (CR) | Rasio kode koreksi galat. 4/5 berarti tiap 4 bit data disertai 1 bit koreksi. |
@@ -65,7 +65,7 @@ Teori dibatasi pada apa yang dipakai di percobaan.
 **Sekuens yang diamati**
 
 ```
-   Sender                          (udara 920 MHz)                    Receiver
+   Sender                          (udara 433 MHz)                    Receiver
      |                                                                   |
   beginPacket()                                                    parsePacket()
   print("Hello LoRa #7")                                            (polling terus)
@@ -82,7 +82,7 @@ Teori dibatasi pada apa yang dipakai di percobaan.
         BOARD #1                                  BOARD #2
   +------------------+                      +------------------+
   |   Arduino Uno    |                      |   Arduino Uno    |
-  | + LoRa Shield    |  ~~~~ 920 MHz ~~~~>  | + LoRa Shield    |
+  | + LoRa Shield    |  ~~~~ 433 MHz ~~~~>  | + LoRa Shield    |
   |     SENDER       |     satu arah        |    RECEIVER      |
   | "Hello LoRa #n"  |                      | cetak + RSSI/SNR |
   +------------------+                      +------------------+
@@ -103,7 +103,7 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 | No | Peralatan | Spesifikasi | Jumlah |
 |---|---|---|---|
 | 1 | Arduino Uno | ATmega328P, flash 32 KB | 2 |
-| 2 | Dragino LoRa Shield | v1.2, SX1276, 920 MHz | 2 |
+| 2 | Dragino LoRa Shield | v1.2, SX1276, 433 MHz | 2 |
 | 3 | Antena SMA | sesuai band shield — **wajib terpasang sebelum diberi daya** | 2 |
 | 4 | Kabel USB tipe B | kabel data | 2 |
 | 5 | PC/Laptop | PlatformIO Core/IDE, 2 port USB bebas | 1 |
@@ -128,6 +128,8 @@ Pin D6, D7, dan D8 tersambung ke DIO1, DIO2, dan DIO5 pada shield. Ketiganya tid
 ```
 week01_lora_uart/
 ├── platformio.ini
+├── monitor_serial.py       ← pantau TX & RX sekaligus, ringkas loss/RSSI/SNR
+├── logserial.md            ← log referensi hasil uji perangkat
 └── src/
     ├── sender/main.cpp     ← kirim "Hello LoRa #n" tiap 2 detik
     └── receiver/main.cpp   ← terima, cetak isi + RSSI + SNR
@@ -140,12 +142,41 @@ pio run -d week01_lora_uart -e receiver -t upload -t monitor
 pio run -d week01_lora_uart -e sender   -t upload -t monitor
 ```
 
+**Memantau kedua board sekaligus**
+
+Dua Serial Monitor terpisah menyulitkan pembandingan nomor urut, karena tiap jendela memiliki sumbu waktunya sendiri. Skrip `monitor_serial.py` menggabungkan keduanya pada satu sumbu waktu, lalu meringkas hasil ukur tautannya saat berhenti:
+
+```bash
+python3 week01_lora_uart/monitor_serial.py
+python3 week01_lora_uart/monitor_serial.py --durasi 60 --log sesi1.txt
+python3 week01_lora_uart/monitor_serial.py --port RX=/dev/ttyACM0
+```
+
+Keluarannya berisi kedua aliran berdampingan, ditutup ringkasan yang langsung mengisi tabel EXP-02:
+
+```
+[   2.012] RX      | --- Paket Diterima ---
+[   2.012] RX      |   Data  : "Hello LoRa #0"
+[   2.012] RX      |   RSSI  : -41 dBm
+[   2.023] TX      | [TX] "Hello LoRa #0" ... terkirim
+------------------------------------------------------------
+  Paket dikirim  : 10  (nomor 0..9)
+  Paket diterima : 10  (nomor 0..9)
+  Paket hilang   : 0 (0.0 %)
+  RSSI  min/maks/rata-rata : -46 / -40 / -41.4 dBm
+  SNR   min/maks/rata-rata : 9.25 / 9.75 / 9.45 dB
+```
+
+Paket hilang dihitung dari **selisih nomor urut** yang benar-benar terlihat dikirim, bukan dari jumlah baris, sehingga paket yang lewat sebelum monitor dijalankan tidak ikut dianggap gagal.
+
+> **Membuka monitor me-reset kedua board.** Pada Arduino Uno, jalur DTR terhubung ke pin RESET, sehingga penghitung paket kembali ke nol setiap kali monitor dijalankan. Sifat itu justru berguna — baris `Init LoRa ... OK` ikut terekam — tetapi berarti monitor harus dijalankan **lebih dahulu**, bukan di tengah percobaan yang sedang berlangsung.
+
 **Pre-flight checklist**
 
 - ☐ Antena terpasang pada kedua shield.
 - ☐ `pio device list` dijalankan, port kedua board dicatat dan diisikan ke `platformio.ini`.
 - ☐ Nilai `FREQUENCY` pada kedua source **sama persis** dan sesuai band shield yang dipakai.
-- ☐ Dua Serial Monitor 9600 baud siap.
+- ☐ Dua Serial Monitor 9600 baud siap, atau `monitor_serial.py` dijalankan lebih dahulu.
 
 ## 6 · Percobaan
 
@@ -158,7 +189,7 @@ Unggah kedua firmware, buka Serial Monitor keduanya, dan amati pesan awal.
 ```
 === LoRa SENDER ===
 Init LoRa ... OK
-Frekuensi : 920.00 MHz
+Frekuensi : 433.00 MHz
 SF=7, BW=125kHz, CR=4/5, Power=17dBm
 Kirim tiap 2 detik...
 ```
@@ -210,11 +241,34 @@ Ubah **satu** parameter di penerima saja, unggah ulang, dan amati akibatnya. Kem
 | 03-a | `setSpreadingFactor(8)` | |
 | 03-b | `setSignalBandwidth(250E3)` | |
 | 03-c | `setCodingRate4(6)` | |
-| 03-d | `FREQUENCY 923E6` | |
+| 03-d | `FREQUENCY 868E6` | |
 
-> **CHECKPOINT** — Keempat uji harus menghentikan penerimaan sepenuhnya, bukan sekadar memperburuknya. Radio LoRa tidak mengenal "hampir cocok": parameter yang berbeda membuat paket tidak pernah dikenali sebagai paket.
+> **CHECKPOINT** — Tiga dari empat uji menghentikan penerimaan **sepenuhnya**, bukan sekadar memperburuknya: untuk SF, bandwidth, dan frekuensi, radio LoRa tidak mengenal "hampir cocok". Satu uji berperilaku berbeda — temukan yang mana, lalu jelaskan sebabnya sebelum melanjutkan. Petunjuk: periksa apa saja yang dibawa header PHY sebuah paket LoRa, dan apa yang menentukan bentuk gelombangnya secara fisik.
 
-### Verifikasi build (referensi)
+**Mengapa coding rate berbeda sendiri.** Uji 03-c tetap menerima paket seperti biasa. Penyebabnya, program memakai *explicit header mode* (bawaan library): tiap paket membawa header PHY berisi panjang payload dan **coding rate yang dipakai**, dan header itu sendiri selalu dikirim dengan CR 4/8. Penerima membaca CR dari header lalu menyesuaikan diri, sehingga `setCodingRate4()` di sisi penerima hanya berlaku ketika penerima **mengirim**. Sebaliknya SF, bandwidth, dan frekuensi menentukan bentuk gelombang: bila salah satu berbeda, sinyal tidak dikenali sebagai paket LoRa sama sekali dan header pun tidak pernah terbaca. Hasil uji ini terekam di `logserial.md`.
+
+### Verifikasi hardware (log referensi)
+
+Dijalankan pada dua Arduino Uno bershield Dragino LoRa v1.2, frekuensi 433 MHz, jarak ±30 cm. Log lengkap ada di `logserial.md`.
+
+```
+[   1.84] TX | [TX] "Hello LoRa #0" ... terkirim
+[   1.84] RX | --- Paket Diterima ---
+[   1.87] RX | Data  : "Hello LoRa #0"
+[   1.90] RX | RSSI  : -41 dBm
+[   1.90] RX | SNR   : 9.00 dB
+```
+
+| Parameter | Hasil terukur |
+|---|---|
+| Paket dikirim / diterima dalam 62 s | 28 / 28 (loss 0 %) |
+| RSSI: min / maks / rata-rata | −56 / −43 / −53,9 dBm |
+| SNR: min / maks / rata-rata | 9,00 / 9,75 / 9,45 dB |
+| Selang TX → RX tercetak | 0,002–0,200 s |
+| Interval kirim terukur | 2,00–2,01 s |
+| EXP-03 diulang pada dua pasangan board | pola hasil identik |
+| EXP-03: SF / BW / frekuensi berbeda | penerimaan berhenti total |
+| EXP-03: coding rate berbeda | **tetap diterima** — lihat penjelasan header PHY di atas |
 
 ```
 Environment    Status    Flash              RAM
@@ -257,7 +311,7 @@ Keduanya jauh di bawah batas 32 KB Arduino Uno — inilah alasan library sandeep
 1. Bagaimana hubungan jarak terhadap RSSI pada data tabel A? Apakah penurunannya sebanding dengan jarak, dan mengapa demikian?
 2. Pada baris mana RSSI masih baik tetapi SNR sudah memburuk? Jelaskan apa yang terjadi secara fisik pada kondisi itu.
 3. Dari tabel C, apa yang dipertukarkan ketika spreading factor dinaikkan? Kaitkan dengan waktu udara dan konsumsi energi.
-4. Mengapa perbedaan satu parameter saja (EXP-03) membuat komunikasi gagal total, bukan sekadar menurun kualitasnya?
+4. Tiga parameter pada EXP-03 membuat komunikasi gagal total, satu lagi tidak berpengaruh sama sekali. Kelompokkan keempatnya berdasarkan apakah parameter itu menentukan bentuk gelombang atau hanya cara payload dikodekan, lalu jelaskan mengapa pengelompokan itu memprediksi hasilnya.
 5. Modul ini tidak memiliki alamat maupun identitas node. Sebutkan dua masalah yang pasti muncul bila ada tiga board menyala bersamaan dengan firmware yang sama.
 
 ## 9 · Concept Check

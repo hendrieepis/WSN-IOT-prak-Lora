@@ -11,8 +11,8 @@ Kebutuhan:
   pip install pyserial rich
 
 Cara pakai:
-  python lora_monitor.py                               # default COM8/9/10 @ 9600
-  python lora_monitor.py --master COM3 --s1 COM4 --s2 COM5 --baud 115200
+  python lora_monitor.py                               # port bawaan sesuai OS
+  python lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyUSB0
   python lora_monitor.py --out data_eksperimen.csv
 """
 
@@ -50,9 +50,18 @@ except ImportError:
 # ──────────────────────────────────────────────
 # KONFIGURASI
 # ──────────────────────────────────────────────
-DEFAULT_MASTER_PORT = "COM3"
-DEFAULT_S1_PORT     = "COM4"
-DEFAULT_S2_PORT     = "COM5"
+# Port bawaan mengikuti sistem operasi. Di Linux/macOS, Uno asli muncul sebagai
+# /dev/ttyACM* dan klon ber-bridge CH340 sebagai /dev/ttyUSB*; di Windows
+# keduanya sama-sama COMx. Jalankan tools/deteksi_port.py untuk mengetahui port
+# mana milik board yang mana, lalu berikan lewat --master/--s1/--s2.
+if sys.platform.startswith("win"):
+    DEFAULT_MASTER_PORT = "COM3"
+    DEFAULT_S1_PORT     = "COM4"
+    DEFAULT_S2_PORT     = "COM5"
+else:
+    DEFAULT_MASTER_PORT = "/dev/ttyACM0"
+    DEFAULT_S1_PORT     = "/dev/ttyACM1"
+    DEFAULT_S2_PORT     = "/dev/ttyACM2"
 DEFAULT_BAUD        = 115200
 LOG_LINES           = 18
 REFRESH_HZ          = 4
@@ -429,7 +438,7 @@ BANNER = """\
     python lora_monitor.py --out data_jarak_10m.csv
         → Simpan log ke nama file tertentu
 
-    python lora_monitor.py --master COM3 --s1 COM4 --s2 COM5 --baud 115200 --out hasil_uji.csv
+    python lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyUSB0 --out hasil_uji.csv
         → Konfigurasi penuh untuk satu sesi eksperimen
 
   KONTROL DASHBOARD:
@@ -455,7 +464,7 @@ def parse_args():
             f"  python lora_monitor.py\n"
             f"  python lora_monitor.py --master COM3 --s1 COM4 --s2 COM5\n"
             f"  python lora_monitor.py --out data_eksperimen.csv\n"
-            f"  python lora_monitor.py --master COM3 --s1 COM4 --s2 COM5 --baud 115200 --out hasil.csv\n"
+            f"  python lora_monitor.py --master /dev/ttyACM0 --s1 /dev/ttyACM1 --s2 /dev/ttyUSB0 --out hasil.csv\n"
         ),
     )
     p.add_argument('--master', default=DEFAULT_MASTER_PORT,

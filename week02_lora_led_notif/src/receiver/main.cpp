@@ -26,7 +26,7 @@
 #define RST_PIN     9
 #define DIO0_PIN    2
 
-#define FREQUENCY        920E6
+#define FREQUENCY        433E6
 #define BANDWIDTH        125E3
 #define SPREADING_FACTOR 7
 #define CODING_RATE      5

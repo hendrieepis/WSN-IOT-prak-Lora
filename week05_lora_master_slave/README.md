@@ -117,7 +117,7 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 | No | Peralatan | Spesifikasi | Jumlah |
 |---|---|---|---|
 | 1 | Arduino Uno | ATmega328P | 3 |
-| 2 | Dragino LoRa Shield | v1.2, SX1276, 920 MHz | 3 |
+| 2 | Dragino LoRa Shield | v1.2, SX1276, 433 MHz | 3 |
 | 3 | Antena SMA | **wajib terpasang sebelum diberi daya** | 3 |
 | 4 | Kabel USB tipe B | kabel data | 3 |
 | 5 | PC/Laptop | PlatformIO Core/IDE, idealnya 3 port USB bebas | 1 |
@@ -129,7 +129,9 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 ```
 week05_lora_master_slave/
 ├── platformio.ini              ← 3 environment; nomor slave lewat build flag
-├── lora_monitor.py             ← dashboard tiga node dalam satu layar
+├── monitor_serial.py           ← pantau 3 node, ringkas siklus/keberhasilan/[IGNORE]
+├── logserial.md                ← log referensi hasil uji perangkat
+├── lora_monitor.py             ← dashboard tiga node dalam satu layar (butuh `rich`)
 ├── lora_session_20260516_071007.csv   ← contoh rekaman sesi (referensi)
 └── src/
     ├── master/main.cpp         ← polling round-robin + statistik per node
@@ -144,7 +146,25 @@ pio run -d week05_lora_master_slave -e slave2 -t upload
 pio run -d week05_lora_master_slave -e master -t upload -t monitor
 ```
 
-**Memantau ketiga node sekaligus.** Tiga Serial Monitor terpisah menyulitkan penilaian urutan kejadian, karena tiap jendela memiliki sumbu waktunya sendiri. Skrip `lora_monitor.py` menggabungkan ketiganya menjadi satu dasbor sekaligus merekamnya ke CSV:
+**Memantau ketiga node sekaligus.** Tiga Serial Monitor terpisah menyulitkan penilaian urutan kejadian, karena tiap jendela memiliki sumbu waktunya sendiri. Tersedia dua alat.
+
+`monitor_serial.py` — sama seperti Modul 01–04, tanpa pustaka tambahan, dan meringkas hasil ukur saat berhenti:
+
+```bash
+python3 week05_lora_master_slave/monitor_serial.py --baud 115200 --durasi 40
+python3 week05_lora_master_slave/monitor_serial.py --baud 115200 --port S2=/dev/ttyUSB0
+```
+
+```
+  Siklus polling : 53  (nomor 7..59)
+  Lama siklus min/maks/rata-rata : 147 / 154 / 152 ms
+  Slave 1 : dipanggil 53  menjawab 52  gagal 0  -> keberhasilan 98.1 %
+  Slave 2 : dipanggil 52  menjawab 52  gagal 0  -> keberhasilan 100.0 %
+  S1 membuang 116 panggilan milik node lain ([IGNORE])
+  S2 membuang 115 panggilan milik node lain ([IGNORE])
+```
+
+`lora_monitor.py` — dasbor berwarna dengan perekaman CSV, memerlukan pustaka `rich`:
 
 ```bash
 pip install pyserial rich
@@ -267,7 +287,22 @@ Unggah ke kedua slave, amati master selama satu menit, lalu **kembalikan kodenya
 
 > **CHECKPOINT** — Sebagian besar siklus akan berakhir dengan `[FAIL]` atau `[WARN] Balasan tidak valid`, padahal kedua slave jelas-jelas mengirim. Tabrakan tidak menghasilkan pesan kesalahan dari radio — hanya kesunyian atau data rusak. Pengamatan ini adalah inti seluruh modul.
 
-### Verifikasi build (referensi)
+**Perhatikan kolom SNR.** Pada pengujian rujukan, SNR di master anjlok dari 9,0–9,8 dB menjadi **1,25–1,75 dB** begitu kedua slave menjawab bersamaan: jawaban satu slave menjadi derau bagi jawaban slave lainnya. Inilah cara paling langsung mendeteksi tabrakan dari sisi aplikasi, dan bahan jawaban pertanyaan nomor 5 pada bagian Analisis. Perhatikan pula bahwa kegagalannya **tidak merata** — Slave 2 tetap terbaca master sedangkan Slave 1 tidak pernah berhasil sama sekali, karena penerima memenangkan sinyal yang lebih kuat (*capture effect*). Dari sisi master, node yang kalah tampak seperti mati.
+
+### Verifikasi hardware (log referensi)
+
+Dijalankan pada tiga Arduino Uno bershield Dragino LoRa v1.2, 433 MHz, jarak ±30 cm. Log lengkap ada di `logserial.md`.
+
+| Parameter | Hasil terukur |
+|---|---|
+| Siklus dalam 40 detik | **53** — lama siklus 147/154/**152 ms** |
+| Keberhasilan kedua slave | **100 %**, 0 `FAIL` |
+| `[IGNORE]` per slave per siklus | **2** — panggilan *dan* jawaban milik node lain |
+| Lama siklus saat satu node mati | **611 ms** — melipat **4×** dari 152 ms |
+| Pertambahan akibat satu node mati | +459 ms ≈ `POLL_TIMEOUT` |
+| Apakah node sehat ikut terganggu? | tidak |
+| **EXP-04 tabrakan: SNR di master** | **9,0–9,8 dB → 1,25–1,75 dB** |
+| EXP-04: keberhasilan Slave 1 | 100 % → **0 %** (kalah *capture* dari Slave 2) |
 
 ```
 Environment    Status    Flash

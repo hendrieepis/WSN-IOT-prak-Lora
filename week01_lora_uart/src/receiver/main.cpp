@@ -20,7 +20,7 @@
 #define RST_PIN     9
 #define DIO0_PIN    2
 
-#define FREQUENCY  920E6
+#define FREQUENCY  433E6
 
 void setup() {
   Serial.begin(9600);

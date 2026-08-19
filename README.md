@@ -90,12 +90,14 @@ Konsekuensinya: **angka pengukuran modul awal dipakai lagi di modul akhir.** Los
 
 ## Perangkat keras
 
+![bab988112f70e658f0ee6025f1f4670d322eb797](./assets/bab988112f70e658f0ee6025f1f4670d322eb797.jpeg)
+
 | Parameter | Nilai |
 |---|---|
 | Board | Arduino Uno (ATmega328P), flash 32 KB, RAM 2 KB |
 | Shield | Dragino LoRa Shield v1.2 |
 | Chip radio | Semtech SX1276 |
-| Frekuensi | 920 MHz (tersedia juga varian 433 / 868 / 915 MHz) |
+| Frekuensi | **433 MHz** — shield yang dipakai lab ini; varian 868 / 915 / 920 MHz juga beredar |
 | Daya pancar | maksimum +20 dBm; program memakai 17 dBm |
 | Sensitivitas | hingga −148 dBm |
 | Antarmuka | SPI perangkat keras + 3 pin kendali (NSS, RST, DIO0) |
@@ -127,6 +129,44 @@ PlatformIO mengunduh keduanya otomatis lewat `lib_deps`; tidak ada pemasangan ma
 
 > **Mengapa bukan RadioLib?** RadioLib terkompilasi menjadi lebih dari 33 KB pada Arduino Uno — melampaui flash 32 KB yang tersedia. Library sandeepmistry hanya memakai 18–30 % flash pada seluruh modul seri ini, sebagaimana terlihat pada tabel verifikasi di bawah.
 
+## Board bercampur: Uno asli dan klon
+
+Lab ini memakai Arduino Uno asli maupun klon secara bercampur. **Firmware kedua jenis board identik** — tidak ada satu baris pun yang perlu diubah, dan tidak ada environment terpisah. Hal itu sudah diverifikasi di perangkat, bukan sekadar diasumsikan:
+
+| Yang diperiksa | Hasil |
+|---|---|
+| Mikrokontroler | `Device signature = 0x1e950f (m328p)` — sama pada kedua jenis |
+| Protokol unggah | `arduino` pada kedua jenis |
+| Berkas `.hex` untuk `upload_port` berbeda | **md5 identik** — port bukan masukan kompilasi |
+| Modul 01 dengan peran ditukar antar-jenis | berjalan normal di kedua arah, RSSI −54,0 vs −53,8 dBm |
+| Modul 05 dengan master asli + satu slave klon | 53 siklus, keberhasilan 100 % di kedua slave |
+
+Yang berbeda hanya **chip jembatan USB-ke-serial** di atas board, dan itu hanya mengubah nama port di sistem operasi:
+
+| Jenis board | Jembatan USB | Nama port di Linux |
+|---|---|---|
+| Uno asli | ATmega16U2 (`2341:0043`) | `/dev/ttyACM*` |
+| Klon | CH340 (`1a86:7523`), CH343 (`1a86:55d3`), FTDI, CP2102 | `/dev/ttyUSB*` |
+
+Di Windows keduanya sama-sama muncul sebagai `COMx`, sehingga perbedaan ini tidak terasa sama sekali.
+
+**Kenali port sebelum mengunggah:**
+
+```bash
+python3 tools/deteksi_port.py          # daftar port + jenis board
+python3 tools/deteksi_port.py --ini    # potongan platformio.ini siap tempel
+```
+
+```
+Port             VID:PID      Jenis          Jembatan USB
+--------------------------------------------------------------
+/dev/ttyACM0     2341:0043    Uno asli       ATmega16U2 (Arduino LLC)
+/dev/ttyACM1     2341:0043    Uno asli       ATmega16U2 (Arduino LLC)
+/dev/ttyUSB0     1a86:7523    klon           CH340/CH341
+```
+
+**Satu hal yang benar-benar berbeda perilakunya**, dan hanya di sisi perkakas: skrip Python yang menyetel jalur DTR/RTS **sebelum** `open()` ditolak oleh CDC ATmega16U2 pada Uno asli dengan `[Errno 110] Connection timed out`, sementara pada klon CH340 hal itu lolos. Seluruh `monitor_serial.py` pada seri ini sudah tidak menyentuh jalur tersebut. Bila menulis skrip serial sendiri, buka port apa adanya — jangan mengatur DTR/RTS sebelum membukanya.
+
 ## Menjalankan
 
 ```bash
@@ -135,7 +175,7 @@ pio run -d week01_lora_uart -e receiver -t upload    # penerima dahulu
 pio run -d week01_lora_uart -e sender   -t upload -t monitor
 ```
 
-Port di tiap `platformio.ini` masih memakai nilai contoh. Arduino Uno asli muncul sebagai `/dev/ttyACM*`, klon berbasis CH340 sebagai `/dev/ttyUSB*`, dan Windows memakai `COMx` — sesuaikan sebelum mengunggah.
+Port di tiap `platformio.ini` masih memakai nilai contoh untuk tiga Uno asli. Jalankan `tools/deteksi_port.py` lebih dahulu (lihat bagian sebelumnya), lalu sesuaikan `upload_port`/`monitor_port` sesuai board yang benar-benar terpasang.
 
 **Urutan unggah** penting di sebagian besar modul: pihak yang **menunggu** diunggah lebih dahulu, pihak yang **memulai** belakangan. Tiap README menyebutkan urutannya.
 

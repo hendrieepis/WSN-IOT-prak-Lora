@@ -26,7 +26,7 @@
 #define RST_PIN           9
 #define DIO0_PIN          2
 
-#define FREQUENCY        920E6
+#define FREQUENCY        433E6
 #define BANDWIDTH        125E3
 #define SPREADING_FACTOR 7
 #define CODING_RATE      5
@@ -81,14 +81,14 @@ void setup() {
   Serial.print(F("Peran : "));
 
 #ifdef DEVICE_A
-  Serial.println(F("INITIATOR (Device A — COM8)"));
+  Serial.println(F("INITIATOR (Device A, env devicea)"));
   Serial.println();
   delay(1000);  // beri Device B waktu siap
   transmit(MY_NAME ":Ping");
   lastTxMs = millis();
   Serial.println(F("[TX] DeviceA:Ping\n"));
 #else
-  Serial.println(F("RESPONDER  (Device B — COM9)"));
+  Serial.println(F("RESPONDER  (Device B, env deviceb)"));
   Serial.println(F("Menunggu paket...\n"));
 #endif
 }
