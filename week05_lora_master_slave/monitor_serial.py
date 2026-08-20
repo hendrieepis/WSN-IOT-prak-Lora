@@ -209,8 +209,9 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", action="append", metavar="NAMA=/dev/ttyXXX",
                     help="ganti port TX atau RX, mis. RX=/dev/ttyACM0; boleh diulang")
-    # Modul 01-04 memakai 9600; Modul 05 memakai 115200.
-    ap.add_argument("--baud", type=int, default=9600)
+    # Modul ini memakai 115200, sesuai Serial.begin() di src/ dan monitor_speed
+    # di platformio.ini. Modul 01-04 memakai 9600.
+    ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--durasi", type=float, metavar="DETIK",
                     help="berhenti otomatis setelah sekian detik (mis. --durasi 60)")
     ap.add_argument("--log", metavar="FILE", help="simpan juga ke file teks")
