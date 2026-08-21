@@ -366,7 +366,3 @@ Bila salah satu baris menyimpang jauh dari tiga lainnya, calon penyebabnya bukan
 6. Analisis dan concept check
 7. Challenge — minimal CH-2 atau CH-3
 8. Kesimpulan yang disusun sendiri, dengan pernyataan tegas mengenai hasil uji silang platform pada EXP-03
-
----
-
-**Modul sebelumnya:** [05 — Master-Slave 3 Node](../week05_lora_master_slave/) · **Modul berikutnya:** [07 — Gateway Linux Menjadwalkan Node Arduino](../week07_rpi_master_slave/) · [← README utama](../README.md)
