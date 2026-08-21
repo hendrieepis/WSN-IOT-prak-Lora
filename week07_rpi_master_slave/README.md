@@ -1,156 +1,136 @@
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
               LoRa COMMUNICATION LAB
-                  LAB HANDBOOK
+   MODUL 07 — Gateway Linux Menjadwalkan Node Arduino
 
-
-         KOMUNIKASI JARAK JAUH
-              DENGAN LoRa
-
-
-   Arduino Uno + Raspberry Pi  •  7 MODUL
+   Raspberry Pi + Arduino Uno · Advanced
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Yang dikerjakan:** LoRa mentah (SX1276) · RSSI & SNR · interrupt · ACK · master-slave multi-node · driver register langsung · gateway Linux
+## 1 · Pendahuluan
 
-## Tentang lab ini
+Modul 07 dirancang untuk tiga pertemuan (3 × 50 menit) pada tingkat lanjut, dan menutup seluruh seri. Misinya memindahkan **master** Modul 05 dari Arduino Uno ke Raspberry Pi tanpa mengubah **satu baris pun** firmware slave — membentuk topologi gateway yang lazim di dunia nyata: satu komputer Linux yang menjadwalkan sekumpulan node mikrokontroler murah lewat radio, dikendalikan dari jarak jauh lewat SSH. Percobaan memakai satu Raspberry Pi bershield Dragino LoRa GPS HAT v1.4 sebagai master dan dua Arduino Uno bershield Dragino LoRa v1.2 sebagai slave, sama persis dengan perangkat keras slave Modul 05.
 
-Ini bukan kumpulan tutorial Arduino. Ini buku kerja laboratorium: setiap modul adalah satu **misi rekayasa** dengan target sukses terukur, prosedur eksperimen, dan data yang harus dikumpulkan sendiri.
+Modul ini adalah pertemuan dua kemampuan yang dibangun terpisah. Modul 05 membangun **penjadwalan**: pengalamatan aplikasi, round-robin, batas waktu per node, statistik terpisah. Modul 06 membangun **driver telanjang**: cara memegang register SX1276 langsung dari Python lewat `spidev` dan `RPi.GPIO`, dengan nama fungsi yang sengaja meniru API sandeepmistry (`beginPacket`, `endPacket`, `parsePacket`, `packetRssi`). Modul ini menggabungkan keduanya: `src/master.py` adalah penjadwal round-robin Modul 05, ditulis ulang di atas driver telanjang Modul 06. Kontrak datanya — `POLL:<id>` dan `S<id>:DATA:<n>` — tidak berubah sedikit pun, dan itulah yang membuat firmware slave dapat dipakai ulang tanpa modifikasi.
 
-Fokusnya **LoRa mentah** — modulasi radio tanpa lapisan jaringan di atasnya. Tidak ada join, tidak ada alamat, tidak ada koneksi, tidak ada penjadwalan. Semua yang biasanya disediakan protokol harus dibangun sendiri di lapisan aplikasi, satu per satu, dan setiap penambahan diukur akibatnya. Justru di situlah nilai seri ini: praktikan menyaksikan sendiri masalah yang selama ini disembunyikan protokol, sebelum memakai protokol yang menyembunyikannya.
+Prasyaratnya adalah M05 untuk logika penjadwalan dan M06 untuk driver telanjang. Yang dibangun di sini adalah pembuktian bahwa keduanya dapat disatukan lintas platform: master berganti dari C++/AVR ke Python/Linux, slave tidak menyadarinya sama sekali. Yang juga dibangun — dan tidak pernah muncul di modul-modul satu mesin sebelumnya — adalah **korelasi log lintas dua komputer independen**: master direkam di Raspberry Pi lewat SSH, slave direkam di laptop pengembang lewat USB, dan kedua rekaman tidak berbagi jam sama sekali. Isinya, bukan cap waktunya, yang membuktikan keduanya benar-benar saling bicara.
 
-Lima modul pertama dikerjakan di atas Arduino Uno bershield Dragino LoRa v1.2. Dua modul terakhir berpindah ke Raspberry Pi bershield Dragino LoRa GPS HAT v1.4 — bukan sekadar ganti papan, melainkan dua pertanyaan lanjutan: **M06** melepas library dan memegang register SX1276 langsung dari Python, sehingga isi `LoRa.begin()` terlihat baris per baris; **M07** memindahkan master jaringan M05 ke Raspberry Pi tanpa mengubah firmware slave sama sekali, membentuk topologi gateway yang lazim di dunia nyata. Chip radionya tetap sama di seluruh seri, dan kesamaan itulah yang membuat kedua sisi dapat dipasangkan silang.
+**Peta modul LoRa (penutup seri)**
 
-Seri ini melengkapi lab [WSN-IOT-prak](../WSN-IOT-prak) yang membahas BLE, Zigbee, dan Thread. Perbandingannya disengaja: di sana jaringan mengurus dirinya sendiri, di sini tidak ada jaringan sama sekali.
+| Modul | Fokus (yang ditumpuk di atas modul sebelumnya) |
+|---|---|
+| 01 | Tautan satu arah terbentuk; RSSI dan SNR terbaca |
+| 02 | Penerimaan lewat interrupt — `loop()` tidak lagi menunggu |
+| 03 | Dua arah bergantian di atas radio half-duplex |
+| 04 | Setiap pengiriman diketahui hasilnya: ACK, timeout, statistik |
+| 05 | Banyak node — hak bicara dijadwalkan agar tidak bertabrakan |
+| 06 | Isi `LoRa.begin()` tidak pernah terlihat — register dipegang langsung |
+| **07 (ini)** | **Penjadwal pindah ke gateway Linux; sisi node tidak berubah sama sekali** |
 
-## Struktur setiap modul
+**Kontrak data lab ini.** Sama persis dengan Modul 05: perintah master berbentuk `POLL:<id>`, jawaban slave berbentuk `S<id>:DATA:<n>`. Tidak ada satu byte pun yang berubah di udara — yang berganti hanya bahasa dan platform yang menyusun serta membaca byte itu. Perbedaan halus satu-satunya ada di pesan pembuka Serial slave, yang sekarang menyebut `"Master (Raspberry Pi)"`.
 
-Seluruh modul memakai format yang sama, 11 bagian:
+## 2 · Capaian Pembelajaran
 
-| # | Bagian | Isi |
-|---|---|---|
-| 1 | **Pendahuluan** | Identitas modul, keterkaitan dengan modul lain, prasyarat, dan apa yang dipakai lagi sesudahnya — seluruhnya dalam bentuk kalimat, ditutup peta modul dan kontrak data |
-| 2 | **Capaian Pembelajaran** | 5 capaian **terukur** + kriteria keberhasilan |
-| 3 | **Dasar Teori (secukupnya)** | Hanya istilah yang dipakai di percobaan + sekuens yang diamati |
-| 4 | **Topologi** | Diagram bernama board, peran tiap node |
-| 5 | **Alat yang Digunakan** | Platform, alat & bahan, pemetaan pin, `platformio.ini`, pre-flight, perintah deploy |
-| 6 | **Percobaan** | EXP-01…04 dengan **CHECKPOINT** di tiap tahap |
-| 7 | **Pengukuran** | Tabel yang diisi sendiri |
-| 8 | **Analisis** | Pertanyaan yang hanya bisa dijawab dari tabel Pengukuran |
-| 9 | **Concept Check** | Pertanyaan konseptual, bukan hafalan |
-| 10 | **Challenge** | Tugas **modifikasi kode**, bukan "jelaskan hasilnya" |
-| 11 | **Laporan** | Daftar deliverable |
+Setelah menyelesaikan modul ini, praktikan mampu:
 
-Tiga hal yang membedakan format ini dari panduan praktikum biasa:
+1. Membuktikan dengan `diff` bahwa memindahkan master ke platform lain tidak menuntut perubahan apa pun pada firmware slave, dan menjelaskan properti desain yang membuat itu mungkin.
+2. Menerapkan ulang logika penjadwalan round-robin Modul 05 di atas driver SX1276 telanjang Modul 06, memakai `spidev` dan `RPi.GPIO`/`rpi-lgpio`.
+3. Mengkorelasikan log dari dua mesin yang tidak berbagi jam — satu direkam lewat SSH di Raspberry Pi, satu lewat USB lokal — berdasarkan isi pesan, bukan cap waktu.
+4. Menjelaskan mengapa mematikan CRC payload membuat paket rusak lolos ke lapisan aplikasi sebagai kegagalan yang salah didiagnosis, dan mengukur seberapa sering itu terjadi.
+5. Menelusuri anggaran waktu sesungguhnya di balik `POLL_TIMEOUT` — bagian siklus mana yang benar-benar dihitungnya — lalu memakainya untuk menjelaskan letak sesungguhnya ambang kegagalan pada EXP-04.
 
-- **CHECKPOINT di tengah percobaan.** Praktikan memverifikasi progres sebelum lanjut, bukan baru ketahuan salah di akhir sesi.
-- **"Buka abstraksinya".** Satu kotak per modul yang menyuruh praktikan membongkar satu baris kode yang tampak sepele — menghubungkan API dengan apa yang sebenarnya terjadi di udara.
-- **Percobaan yang sengaja dirusak.** Beberapa modul meminta parameter diubah sampai komunikasi gagal (M01 EXP-03, M05 EXP-04), karena kegagalan yang terkendali mengajarkan lebih banyak daripada keberhasilan yang mulus.
+**Kriteria keberhasilan**
 
-## Keterkaitan antar-modul
+- ☐ `master.py` berhasil memanggil kedua slave Uno bergiliran tanpa mengubah satu baris pun firmware slave — dibuktikan dengan `diff` terhadap `week05_lora_master_slave/src/slave/main.cpp`.
+- ☐ `cek_radio.py` membaca balik register SX1276 di Raspberry Pi dan hasilnya dibandingkan dengan konfigurasi yang dimaksud.
+- ☐ Satu sesi log master (Raspberry Pi) dan log slave (laptop) dikorelasikan lewat isi pesan, bukan lewat waktu perekaman.
+- ☐ Slave dimatikan secara fisik saat sistem berjalan (EXP-03); master tetap melayani slave lain dan pulih otomatis begitu slave kembali.
+- ☐ Ambang kegagalan `POLL_TIMEOUT` ditemukan dalam rentang beberapa milidetik, dan letaknya dijelaskan lewat anggaran waktu siklus, bukan hanya dicatat sebagai angka.
 
-Tiap modul menambahkan **satu** kemampuan yang hilang dari modul sebelumnya:
+## 3 · Dasar Teori (secukupnya)
+
+| Istilah | Definisi kerja di lab ini |
+|---|---|
+| Gateway | Node yang menjadwalkan jaringan radio dari komputer bertenaga penuh, terpisah dari node yang dijadwalkannya. Di sini: Raspberry Pi. |
+| `spidev` | Antarmuka kernel Linux ke SPI perangkat keras — satu-satunya jalan bicara Python ke SX1276. |
+| `RPi.GPIO` / `rpi-lgpio` | Kendali pin NSS/RESET dan pembacaan DIO0. Pi 5 memakai chip GPIO baru (RP1) yang butuh `rpi-lgpio` sebagai pengganti drop-in. |
+| Jalankan lewat SSH | Master tidak punya layar sendiri; seluruh interaksi — unggah kode, jalankan, hentikan — dilakukan dari terminal jarak jauh. |
+| CRC payload | Pemeriksaan keutuhan data oleh radio sendiri. **Mati** pada modul ini di kedua sisi — konsekuensinya dibahas di bagian Percobaan. |
+| Anggaran `POLL_TIMEOUT` | Bagian siklus yang benar-benar ditunggu batas waktu. TX `POLL` bersifat blocking dan selesai **sebelum** penghitung waktu mulai berjalan, sehingga anggarannya jauh lebih sempit dari dugaan naif. |
+| Korelasi log lintas mesin | Membuktikan dua rekaman dari komputer berbeda menggambarkan peristiwa yang sama, memakai isi pesan (nomor urut, payload) sebagai pengikat karena keduanya tidak berbagi jam. |
+
+**Mengapa firmware slave tidak perlu tahu siapa master-nya.** Slave hanya mendengar dua hal: `POLL:<id>` yang cocok dengan nomornya, dan segala sesuatu yang lain untuk diabaikan. Ia tidak pernah memeriksa dari mana `POLL` itu berasal, apalagi platform apa yang mengirimkannya. Selama pengirim baru menghasilkan bentuk gelombang yang identik — frekuensi, SF, BW, CR yang sama — SX1276 di sisi slave tidak dapat membedakan apakah lawan bicaranya Arduino atau Raspberry Pi. Inilah properti yang membuat pemindahan master menjadi mungkin tanpa sentuhan pada slave.
+
+**Mengapa anggaran `POLL_TIMEOUT` lebih sempit dari dugaan.** Intuisi naif: batas waktu 500 ms harus menampung waktu udara `POLL` (±31 ms) **dan** waktu udara jawaban (±36–41 ms), sehingga ambang kegagalan diperkirakan baru muncul di atas 70-an ms. Kenyataannya, `transmit(pollMsg)` di `pollSlave()` bersifat blocking — ia baru kembali setelah `IRQ_TX_DONE` menyala, yaitu setelah `POLL` selesai mengudara. Penghitung waktu (`waitStart = time.monotonic()`) baru dimulai **sesudah** itu. Akibatnya jendela yang sebenarnya ditunggu hanya: pemrosesan di slave + waktu udara jawaban + deteksi RX di master — jauh lebih sempit dari intuisi awal. Bagian Percobaan mengukur persis di mana ambang itu berada.
+
+**Sekuens yang diamati**
 
 ```
-M01 tautan terbentuk ─► M02 penerimaan tak memblokir ─► M03 dua arah
-                                                            │
-                            ┌───────────────────────────────┘
-                            ▼
-                    M04 hasil kirim diketahui ─► M05 banyak node dijadwalkan
-                                                            │
-                            ┌───────────────────────────────┘
-                            ▼
-                    M06 library dilepas ─► M07 penjadwal pindah ke gateway
-                    (platform berganti)     (sisi node tidak berubah)
+   Raspberry Pi (master)         Slave 1 (Uno)              Slave 2 (Uno)
+     |                             |                           |
+  "POLL:1" ---------------------> tiba                     tiba juga
+  (TX blocking, ~31ms)       cocok -> jawab            tidak cocok -> [IGNORE]
+     |  waitStart mulai DI SINI       |                           |
+  tunggu <= POLL_TIMEOUT            |                           |
+     |  <----------- "S1:DATA:12" -+                           |
+  catat OK                                                     |
+     |                                                         |
+  "POLL:2" ------------------------------------------------> tiba
+     |                        [IGNORE]                    cocok -> jawab
+  tunggu <= POLL_TIMEOUT                                        |
+     |  <-------------------------------------- "S2:DATA:12" --+
+  catat OK, cetak statistik, jeda CYCLE_INTERVAL, ulangi siklus
 ```
 
-| Modul | Yang hilang di modul sebelumnya | Yang ditambahkan |
-|---|---|---|
-| 01 | — | Tautan radio, parameter, RSSI & SNR |
-| 02 | Penerima sibuk menunggu, paket terlewat | Interrupt DIO0 + flag pattern |
-| 03 | Data hanya mengalir satu arah | Percakapan bergantian + auto-retry |
-| 04 | Nasib paket tidak pernah diketahui | ACK, timeout, statistik keberhasilan |
-| 05 | Dua node tidak pernah berebut bicara | Pengalamatan aplikasi + penjadwalan |
-| 06 | Isi `LoRa.begin()` tidak pernah terlihat | Register SX1276 langsung, Python di Linux, uji silang platform |
-| 07 | Master mikrokontroler buntu di Serial Monitor | Gateway Linux menjadwalkan node Arduino tanpa mengubah firmware-nya |
+## 4 · Topologi
 
-**Kontrak data yang konsisten.** Beberapa keputusan sengaja dipertahankan lintas modul supaya datanya dapat dibandingkan:
+```
+                    RASPBERRY PI (di ruang server)
+                 +----------------------------+
+                 |  Raspberry Pi 5 + LoRa GPS  |
+                 |  HAT  --  src/master.py     |
+                 |  dijalankan lewat SSH        |
+                 |  polling round-robin         |
+                 +--------------+---------------+
+                 POLL:1         |         POLL:2
+              /------------------+------------------\
+             v                                       v
+    +------------------+                    +------------------+
+    | Arduino Uno      |                    | Arduino Uno      |
+    | + LoRa Shield    |                    | + LoRa Shield    |
+    |     SLAVE 1      |                    |     SLAVE 2      |
+    | jawab POLL:1     |                    | jawab POLL:2     |
+    | "S1:DATA:n"      |                    | "S2:DATA:n"      |
+    +------------------+                    +------------------+
+       env: slave1                             env: slave2
+       (identik dgn firmware M05, hanya beda pesan pembuka)
+```
 
-| Kontrak | Diperkenalkan | Dipakai lagi di |
-|---|---|---|
-| Nomor urut di dalam payload untuk menghitung loss | M01 (`Hello LoRa #n`) | M03, M04 (`DATA:n`), M05 (`S1:DATA:n`) |
-| Parameter radio baku SF7 / BW 125 kHz / CR 4/5 / 17 dBm | M01 | M02–M05 |
-| Identitas pengirim di dalam payload | M03 (`DeviceA:`) | M05 (`S1:`, `S2:`) |
-| Pencocokan permintaan dengan balasan | M04 (`DATA:n` ↔ `ACK:n`) | M05, M07 (`POLL:n` ↔ `S<n>:DATA:m`) |
-| RSSI dan SNR dicatat berpasangan | M01 | seluruh modul |
+| Node | Environment / program | Build flag | Peran | Batas waktu |
+|---|---|---|---|---|
+| Master | `src/master.py` (Raspberry Pi, lewat SSH) | — | Memanggil bergiliran, mencatat statistik | 500 ms per slave |
+| Slave 1 | `slave1` | `-DSLAVE_ID=1` | Menjawab `POLL:1` | — |
+| Slave 2 | `slave2` | `-DSLAVE_ID=2` | Menjawab `POLL:2` | — |
 
-Konsekuensinya: **angka pengukuran modul awal dipakai lagi di modul akhir.** Loss terhadap jarak dari M01 menjadi pembanding tingkat keberhasilan ACK di M04; waktu pulang-pergi M03 menjadi dasar penentuan batas waktu di M04 dan M05.
+Tidak ada environment PlatformIO untuk master — Python dijalankan langsung, tidak dikompilasi. `platformio.ini` di modul ini hanya memuat kedua environment slave. Kedua slave memakai **file source yang sama**, `src/slave/main.cpp`, identik dengan `week05_lora_master_slave/src/slave/main.cpp` kecuali komentar dan satu baris pesan pembuka Serial.
 
-Kontrak yang sama itu pula yang membuat dua modul terakhir dapat disambungkan silang ke modul awal. Payload M06 identik dengan M01 (`Hello LoRa #n`, SF7/BW 125 kHz), sehingga **sender Raspberry Pi dapat diuji langsung terhadap receiver Arduino M01** dan sebaliknya — percobaan inti M06. Firmware slave M07 pun identik dengan slave M05 kecuali satu baris pesan pembuka, dan kesamaan itu diperiksa dengan `diff` sebagai bagian dari laporan, bukan sekadar dinyatakan.
+## 5 · Alat yang Digunakan
 
-## Mission roster
+Modul ini menggabungkan dua platform: Raspberry Pi 5 dengan Dragino LoRa GPS HAT v1.4 sebagai master, dan dua Arduino Uno dengan Dragino LoRa Shield v1.2 sebagai slave — perangkat keras slave sama persis dengan Modul 05.
 
-| Modul | Folder | MISSION | Arah data | Mekanisme RX | Level |
-|---|---|---|---|---|---|
-| 01 | `week01_lora_uart` | Establish the Link | satu arah | polling | Basic |
-| 02 | `week02_lora_led_notif` | Stop Waiting for Packets | satu arah | interrupt + flag | Basic |
-| 03 | `week03_lora_p2p` | Take Turns Talking | dua arah | polling | Intermediate |
-| 04 | `week04_lora_ack` | Know If It Arrived | dua arah | interrupt + timeout | Intermediate |
-| 05 | `week05_lora_master_slave` | Schedule the Airwaves | bintang, 3 node | polling terjadwal | Advanced |
-| 06 | `week06_rpi_lora_python` | Drop the Library | satu arah | polling register | Intermediate |
-| 07 | `week07_rpi_master_slave` | Move the Scheduler to Linux | bintang, 3 node | polling terjadwal | Advanced |
+| No | Peralatan | Spesifikasi | Jumlah |
+|---|---|---|---|
+| 1 | Raspberry Pi | 2 / 3 / 4 / 5 — diuji pada **Pi 5** | 1 |
+| 2 | Dragino LoRa GPS HAT | v1.4, SX1276, 433 MHz | 1 |
+| 3 | Arduino Uno | ATmega328P | 2 |
+| 4 | Dragino LoRa Shield | v1.2, SX1276, 433 MHz | 2 |
+| 5 | Antena SMA | **wajib terpasang sebelum diberi daya**, di ketiga board | 3 |
+| 6 | Kabel USB tipe B | ke kedua Uno | 2 |
+| 7 | Akses jaringan ke Raspberry Pi | SSH, kunci terpasang lebih disarankan daripada kata sandi | 1 |
 
-Modul 01–05 memakai Arduino Uno + Dragino LoRa Shield v1.2. Modul 06 memakai dua Raspberry Pi + LoRa GPS HAT v1.4. Modul 07 mencampur keduanya: Raspberry Pi sebagai master, dua Arduino Uno sebagai slave.
+> **Baud slave 115200**, sama seperti Modul 05. Master tidak memakai Serial Monitor sama sekali — keluarannya langsung ke terminal SSH.
 
-## Perangkat keras
-
-Dua papan Dragino dipakai di seri ini. Keduanya membawa chip radio yang **sama**, SX1276; yang berbeda hanya papan pembawa dan pin mana yang tersambung ke mana. Perbedaan itu tidak terasa sama sekali di udara — itulah yang dibuktikan M06 dan M07.
-
-### Arduino Uno + Dragino LoRa Shield v1.2 — Modul 01–05, dan sisi slave M07
-
-![bab988112f70e658f0ee6025f1f4670d322eb797](./assets/bab988112f70e658f0ee6025f1f4670d322eb797.jpeg)
-
-| Parameter | Nilai |
-|---|---|
-| Board | Arduino Uno (ATmega328P), flash 32 KB, RAM 2 KB |
-| Shield | Dragino LoRa Shield v1.2 |
-| Chip radio | Semtech SX1276 |
-| Frekuensi | **433 MHz** — shield yang dipakai lab ini; varian 868 / 915 / 920 MHz juga beredar |
-| Daya pancar | maksimum +20 dBm; program memakai 17 dBm |
-| Sensitivitas | hingga −148 dBm |
-| Antarmuka | SPI perangkat keras + 3 pin kendali (NSS, RST, DIO0) |
-| Antena | konektor SMA eksternal — **wajib terpasang** |
-
-> **Jangan menyalakan shield tanpa antena.** Daya pancar yang tidak menemukan beban dipantulkan kembali ke penguat SX1276 dan dapat merusaknya permanen.
-
-**Pemetaan pin**
-
-| Pin | Fungsi | Boleh dipakai program? |
-|---|---|---|
-| D10 | NSS / CS (jumper R9) | Tidak |
-| D11, D12, D13 | MOSI, MISO, SCK | Tidak — D13 juga LED bawaan |
-| D9 | RST SX1276 | Tidak |
-| D2 | DIO0 (interrupt) | Tidak |
-| D6, D7, D8 | DIO1, DIO2, DIO5 | Jangan dijadikan output |
-| **D3, D4, D5, A0–A5** | bebas | **Ya** — D3 direkomendasikan untuk LED indikator |
-
-Skematik resmi shield ada di [`skematik/`](skematik/).
-
-### Raspberry Pi + Dragino LoRa GPS HAT v1.4 — Modul 06, dan sisi master M07
-
-![Dragino LoRa GPS HAT terpasang di Raspberry Pi](./assets/lora-gps-hat-terpasang.webp)
-
-| Parameter | Nilai |
-|---|---|
-| Board | Raspberry Pi 2 / 3 / 4 — **diuji pada Pi 4** oleh penyusun kode aslinya |
-| HAT | Dragino LoRa GPS HAT v1.4 |
-| Chip radio | Semtech SX1276 — sama persis dengan shield Arduino |
-| GPS | modul onboard, UART 9600 bps, NMEA 0183 — **tidak dipakai** di seri ini |
-| Antarmuka | SPI0 perangkat keras + 3 jalur GPIO (NSS, RESET, DIO0) |
-| Antena | konektor SMA eksternal — **wajib terpasang**, sama seperti shield |
-
-**Pemetaan pin HAT**
+**Pemetaan pin HAT Raspberry Pi** (sisi master)
 
 | LoRa GPS HAT | WiringPi | BCM GPIO | Padanan di shield Arduino |
 |---|---|---|---|
@@ -158,153 +138,323 @@ Skematik resmi shield ada di [`skematik/`](skematik/).
 | RESET | GPIO0 | **17** | D9 |
 | DIO0 | GPIO7 | **4** | D2 |
 | SCK / MOSI / MISO | GPIO14/12/13 | **11 / 10 / 9** | D13 / D11 / D12 |
-| GPS_RX / GPS_TX / 1PPS | GPIO15/16/1 | 14 / 15 / 18 | — |
 
-Kolom **WiringPi** adalah penomoran yang dipakai dokumentasi resmi Dragino; kolom **BCM** adalah yang dipakai seluruh kode Python di seri ini (`GPIO.setmode(GPIO.BCM)`). Keduanya menunjuk pin fisik yang sama, dan tertukarnya keduanya adalah penyebab kegagalan yang paling sering terjadi.
+Kolom **BCM** adalah yang dipakai `src/master.py` (`GPIO.setmode(GPIO.BCM)`). **NSS bukan CE0** — HAT memakai GPIO 25 biasa sebagai chip select, sehingga kode membuka SPI pada `(0, 0)` tetapi menggerakkan NSS sendiri di sekitar tiap transaksi, persis seperti driver Arduino menggerakkan D10. Rincian lengkap pemetaan pin ada di README utama bagian Perangkat Keras.
 
-**NSS bukan CE0.** HAT memakai GPIO 25 biasa sebagai chip select, bukan jalur CE0 bawaan SPI. Akibatnya kode Python membuka SPI pada `(0, 0)` tetapi menggerakkan NSS sendiri di sekitar tiap transaksi — persis seperti driver Arduino menggerakkan D10.
+> **Raspberry Pi 5** memakai chip GPIO baru (RP1) yang tidak didukung `RPi.GPIO`. Pasang `rpi-lgpio` sebagai gantinya — nama modulnya sama (`import RPi.GPIO as GPIO`), sehingga tidak ada baris kode yang perlu diubah. Jangan memasang keduanya sekaligus. Lihat `requirements.txt`.
 
-**Raspberry Pi 5** memakai chip GPIO baru (RP1) yang tidak didukung `RPi.GPIO`. Pasang `rpi-lgpio` sebagai gantinya; nama modulnya sama, sehingga tidak ada baris kode yang perlu diubah. Jangan memasang keduanya sekaligus.
+**Struktur proyek**
 
-Skematik HAT dan user manual resminya ada di [`skematik/`](skematik/) dan [`dokumen/`](dokumen/).
+```
+week07_rpi_master_slave/
+├── platformio.ini          ← hanya 2 environment: slave1, slave2
+├── requirements.txt        ← spidev + RPi.GPIO (atau rpi-lgpio untuk Pi 5)
+├── logserial.md            ← log referensi hasil uji perangkat, sangat lengkap
+├── lora_monitor.py         ← dasbor 2 slave lokal + rekaman CSV (butuh `rich`)
+├── cek_radio.py            ← baca balik register SX1276 di Raspberry Pi
+└── src/
+    ├── master.py           ← penjadwal round-robin, dijalankan DI Raspberry Pi
+    └── slave/main.cpp      ← satu source untuk kedua slave, identik M05
+```
 
-## Library
-
-| Library | Versi | Fungsi |
-|---|---|---|
-| **LoRa** (sandeepmistry) | 0.8.x | Driver SX1276: init, TX blocking, RX polling/interrupt, RSSI, SNR |
-| **SPI** | bawaan framework | Komunikasi SPI ke SX1276 |
-
-PlatformIO mengunduh keduanya otomatis lewat `lib_deps`; tidak ada pemasangan manual.
-
-> **Mengapa bukan RadioLib?** RadioLib terkompilasi menjadi lebih dari 33 KB pada Arduino Uno — melampaui flash 32 KB yang tersedia. Library sandeepmistry hanya memakai 18–30 % flash pada seluruh modul seri ini, sebagaimana terlihat pada tabel verifikasi di bawah.
-
-**Sisi Raspberry Pi (M06 dan master M07)** tidak memakai library LoRa sama sekali:
-
-| Paket | Fungsi |
-|---|---|
-| `spidev` | Akses `/dev/spidev0.0` — satu-satunya jalan bicara ke SX1276 |
-| `RPi.GPIO` | Kendali jalur NSS dan RESET, pembacaan DIO0 |
-| `rpi-lgpio` | Pengganti `RPi.GPIO` khusus Raspberry Pi 5 — nama modul sama, kode tidak berubah |
-
-Driver SX1276-nya ditulis di dalam berkas program itu sendiri, langsung di atas register. Nama fungsinya sengaja dibuat menyerupai API sandeepmistry (`beginPacket`, `endPacket`, `parsePacket`, `packetRssi`) agar kedua platform dapat dibandingkan baris per baris — dan agar terlihat bahwa library Arduino tidak melakukan apa pun yang ajaib, hanya menulis register yang sama. Pemasangannya lewat `requirements.txt` di masing-masing folder modul.
-
-## Board bercampur: Uno asli dan klon
-
-Catatan ini berlaku untuk seluruh Arduino di lab: Modul 01–05 dan sisi slave Modul 07. Lab ini memakai Arduino Uno asli maupun klon secara bercampur. **Firmware kedua jenis board identik** — tidak ada satu baris pun yang perlu diubah, dan tidak ada environment terpisah. Hal itu sudah diverifikasi di perangkat, bukan sekadar diasumsikan:
-
-| Yang diperiksa | Hasil |
-|---|---|
-| Mikrokontroler | `Device signature = 0x1e950f (m328p)` — sama pada kedua jenis |
-| Protokol unggah | `arduino` pada kedua jenis |
-| Berkas `.hex` untuk `upload_port` berbeda | **md5 identik** — port bukan masukan kompilasi |
-| Modul 01 dengan peran ditukar antar-jenis | berjalan normal di kedua arah, RSSI −54,0 vs −53,8 dBm |
-| Modul 05 dengan master asli + satu slave klon | 53 siklus, keberhasilan 100 % di kedua slave |
-
-Yang berbeda hanya **chip jembatan USB-ke-serial** di atas board, dan itu hanya mengubah nama port di sistem operasi:
-
-| Jenis board | Jembatan USB | Nama port di Linux |
-|---|---|---|
-| Uno asli | ATmega16U2 (`2341:0043`) | `/dev/ttyACM*` |
-| Klon | CH340 (`1a86:7523`), CH343 (`1a86:55d3`), FTDI, CP2102 | `/dev/ttyUSB*` |
-
-Di Windows keduanya sama-sama muncul sebagai `COMx`, sehingga perbedaan ini tidak terasa sama sekali.
-
-**Kenali port sebelum mengunggah:**
+**Build & flash slave** — dari laptop pengembang, seperti modul Arduino lain.
 
 ```bash
-python3 tools/deteksi_port.py          # daftar port + jenis board
-python3 tools/deteksi_port.py --ini    # potongan platformio.ini siap tempel
+pio run -d week07_rpi_master_slave -e slave1 -t upload
+pio run -d week07_rpi_master_slave -e slave2 -t upload
 ```
 
-```
-Port             VID:PID      Jenis          Jembatan USB
---------------------------------------------------------------
-/dev/ttyACM0     2341:0043    Uno asli       ATmega16U2 (Arduino LLC)
-/dev/ttyACM1     2341:0043    Uno asli       ATmega16U2 (Arduino LLC)
-/dev/ttyUSB0     1a86:7523    klon           CH340/CH341
-```
-
-**Satu hal yang benar-benar berbeda perilakunya**, dan hanya di sisi perkakas: skrip Python yang menyetel jalur DTR/RTS **sebelum** `open()` ditolak oleh CDC ATmega16U2 pada Uno asli dengan `[Errno 110] Connection timed out`, sementara pada klon CH340 hal itu lolos. Seluruh `monitor_serial.py` pada seri ini sudah tidak menyentuh jalur tersebut. Bila menulis skrip serial sendiri, buka port apa adanya — jangan mengatur DTR/RTS sebelum membukanya.
-
-## Menjalankan
-
-**Modul 01–05 dan sisi slave Modul 07 — Arduino, lewat PlatformIO:**
+**Menyiapkan Raspberry Pi** — sekali per Pi.
 
 ```bash
-pio device list                                      # catat port tiap board
-pio run -d week01_lora_uart -e receiver -t upload    # penerima dahulu
-pio run -d week01_lora_uart -e sender   -t upload -t monitor
-```
-
-**Modul 06 dan sisi master Modul 07 — Raspberry Pi, langsung dengan Python:**
-
-```bash
+ssh pi@<alamat-ip-pi>
 sudo raspi-config                                    # Interface Options > SPI > Yes, lalu reboot
 ls /dev/spi*                                         # harus muncul spidev0.0
 
-pip3 install -r week06_rpi_lora_python/requirements.txt
-python3 week06_rpi_lora_python/src/receiver.py       # penerima dahulu
-python3 week06_rpi_lora_python/src/sender.py         # di Pi kedua
+pip3 install -r week07_rpi_master_slave/requirements.txt
 ```
 
-Tidak ada yang dikompilasi di sisi Raspberry Pi, sehingga tidak ada `platformio.ini` untuknya. `week07_rpi_master_slave/platformio.ini` hanya memuat kedua environment slave; masternya dijalankan sebagai `python3 src/master.py`.
+**Menjalankan master** — **kedua slave lebih dahulu**, baru master, dan master selalu di Raspberry Pi.
 
-Port di tiap `platformio.ini` masih memakai nilai contoh untuk tiga Uno asli. Jalankan `tools/deteksi_port.py` lebih dahulu (lihat bagian sebelumnya), lalu sesuaikan `upload_port`/`monitor_port` sesuai board yang benar-benar terpasang.
+```bash
+ssh pi@<alamat-ip-pi>
+cd ~/Documents/WSN-IOT-prak-Lora/week07_rpi_master_slave/src
+python3 -u master.py            # -u penting bila keluarannya dipipa/direkam
+```
 
-**Urutan unggah** penting di sebagian besar modul: pihak yang **menunggu** diunggah lebih dahulu, pihak yang **memulai** belakangan. Tiap README menyebutkan urutannya.
+`master.py` menerima `-h`/`--help` yang mencetak parameter radio tanpa menyentuh SPI/GPIO — aman dijalankan untuk memeriksa konfigurasi sebelum sesi sungguhan. Tidak ada opsi lain; seluruh parameter (frekuensi, SF, BW, `POLL_TIMEOUT`, `CYCLE_INTERVAL`) adalah konstanta di dalam berkas, sengaja dibuat sama dengan slave.
 
-**Baud Serial Monitor**: 9600 untuk M01–M04, **115200 untuk M05 dan slave M07**. Modul 06 tidak memakai Serial Monitor sama sekali — keluarannya langsung ke terminal Raspberry Pi.
+**Memantau kedua slave dari laptop.** Selagi master berjalan di Pi lewat SSH, kedua Uno tetap tersambung USB ke laptop pengembang. `lora_monitor.py` — dasbor dua node dengan perekaman CSV, memerlukan pustaka `rich`:
 
-## Status verifikasi
+```bash
+pip install pyserial rich
+python3 lora_monitor.py --s1 /dev/ttyACM0 --s2 /dev/ttyACM1
+python3 lora_monitor.py --s1 /dev/ttyACM0 --s2 /dev/ttyACM1 --out sesi1.csv
+```
 
-Seluruh modul Arduino dikompilasi ulang setelah dikonversi ke PlatformIO. Modul 05 dan Modul 07 sudah diuji langsung di perangkat keras (tiga Arduino Uno bershield Dragino, satu Raspberry Pi 5 bershield LoRa GPS HAT) — rincian sesi dan angka terukurnya ada di `week05_lora_master_slave/logserial.md` dan `week07_rpi_master_slave/logserial.md`. Modul 01–04 dan Modul 06 belum diuji ulang pada konversi ini; perilaku yang dijelaskan di README-nya berasal dari kode sumber asli beserta dokumentasinya, bukan dari pengamatan ulang. Angka pada tabel pengukuran modul yang belum diuji tetap disediakan kosong untuk diisi praktikan.
+**Memverifikasi radio sebelum percobaan.** `cek_radio.py`, dijalankan di Raspberry Pi, membaca balik register SX1276 setelah `loraBegin()` + konfigurasi — bukan menyalin konstanta dari source, melainkan isi chip yang sesungguhnya:
 
-| Modul | Environment | Build | Flash (dari 32.256 B) |
+```bash
+ssh pi@<alamat-ip-pi>
+cd ~/Documents/WSN-IOT-prak-Lora/week07_rpi_master_slave
+python3 cek_radio.py
+```
+
+**Pre-flight checklist**
+
+- ☐ Antena terpasang pada HAT dan kedua shield.
+- ☐ SPI aktif di Raspberry Pi — `ls /dev/spi*` menampilkan `spidev0.0`.
+- ☐ `spidev` dan `RPi.GPIO` (atau `rpi-lgpio` pada Pi 5) sudah terpasang di Pi.
+- ☐ `pio device list` dijalankan di laptop, kedua port Uno dicatat dan diisikan ke `platformio.ini`.
+- ☐ SSH ke Raspberry Pi sudah teruji sebelum sesi dimulai — jangan mendiagnosis masalah jaringan di tengah sesi terjadwal.
+- ☐ Label fisik ditempel: SLAVE 1, SLAVE 2. Master tidak perlu label — hanya ada satu Raspberry Pi.
+
+## 6 · Percobaan
+
+### EXP-01 — Siklus Pertama Lintas Platform
+
+Unggah kedua slave, jalankan `cek_radio.py` untuk memastikan register chip sesuai, lalu jalankan `master.py` dan amati siklus pertama pada **kedua sisi**: terminal SSH di Raspberry Pi, dan serial kedua Uno di laptop.
+
+**Expected output — master (Raspberry Pi)**
+
+```
+=== LoRa MASTER-SLAVE 3 NODE ===
+Init LoRa ... OK
+Freq: 433 MHz
+SF7 | BW: 125 kHz
+Peran: MASTER (Raspberry Pi + LoRa GPS HAT)
+Slave: Dragino Shield Uno - S1 & S2
+
+========================================
+=== CYCLE 1 ===
+[TX] POLL:1
+[RX] S1:DATA:1 | RSSI: -60 dBm | SNR: 14.2 dB
+[TX] POLL:2
+[RX] S2:DATA:1 | RSSI: -58 dBm | SNR: 14.2 dB
+--- STATISTIK ---
+S1: OK=1 | FAIL=0 | Data: 1
+S2: OK=1 | FAIL=0 | Data: 1
+Durasi siklus: 145 ms
+========================================
+```
+
+**Data capture**
+
+| Parameter | Hasil |
+|---|---|
+| Isi `MODEM_CFG_2` menurut `cek_radio.py` (SF, CRC) | |
+| Nomor siklus pertama yang lengkap tanpa `FAIL` | |
+| RSSI master ← S1 / S2 (dBm) | |
+| Jumlah `[IGNORE]` per siklus di tiap slave | |
+
+**Verifikasi kesamaan kode** — bandingkan `src/slave/main.cpp` di modul ini dengan `week05_lora_master_slave/src/slave/main.cpp` memakai `diff`. Jawab: berapa banyak baris yang berbeda, apa isinya, dan mengapa tidak satu pun di antaranya menyentuh logika penyaringan `POLL:<SLAVE_ID>`?
+
+> **CHECKPOINT** — Ketiga node mencetak `OK`, tiap slave menampilkan tepat satu `[RX]` dan dua `[IGNORE]` per siklus (satu untuk `POLL` milik node lain, satu untuk jawaban node lain), dan `diff` menunjukkan hanya komentar serta satu baris pesan pembuka yang berbeda dari M05. Bila jumlah baris beda lebih dari itu, ada perubahan tak sengaja yang perlu diperiksa sebelum melanjutkan.
+
+### EXP-02 — Statistik dan Lama Siklus Lintas Mesin
+
+Rekam **bersamaan** selama minimal 50 detik: terminal SSH master di Raspberry Pi, dan kedua serial slave di laptop lewat `lora_monitor.py`. Dua rekaman ini berasal dari dua komputer yang **tidak berbagi jam** — korelasikan lewat nomor `Data:`/`RX#`, bukan cap waktu.
+
+**Expected output — master**
+
+```
+========================================
+=== CYCLE 40 ===
+[TX] POLL:1
+[RX] S1:DATA:40 | RSSI: -60 dBm | SNR: 14.0 dB
+[TX] POLL:2
+[RX] S2:DATA:40 | RSSI: -58 dBm | SNR: 14.1 dB
+--- STATISTIK ---
+S1: OK=39 | FAIL=1 | Data: 40
+S2: OK=40 | FAIL=0 | Data: 40
+Durasi siklus: 145 ms
+========================================
+```
+
+**Data capture**
+
+| Parameter | Hasil |
+|---|---|
+| Jumlah siklus dalam jendela rekaman | |
+| Durasi siklus min / maks / rata-rata saat sehat (ms) | |
+| Durasi siklus saat satu poll gagal (ms) | |
+| `RX#` terakhir slave 1 / slave 2 (dari log lokal) — bandingkan dengan `Data:` terakhir master | |
+| SNR arah slave→master vs arah master→slave — apakah simetris? | |
+
+**Buka abstraksinya** — cari satu siklus di mana `OK` master lebih kecil daripada `RX#` slave pada nomor yang sama (misalnya `S1: OK=39` sementara log lokal Slave 1 sudah mencetak `RX#: 40`). Jawab: apa yang terjadi pada jawaban itu di udara, dan mengapa fakta bahwa CRC payload **mati** (lihat `cek_radio.py`) relevan dengan jawabanmu?
+
+> **CHECKPOINT** — Angka `Data:` master mengikuti `RX#` slave secara berurutan, dengan kemungkinan `FAIL` sesekali yang **tidak pernah** membuat `Data:` melompat mundur. Durasi siklus sehat sangat rapat (sebaran hanya sekitar 1 ms pada Raspberry Pi 5) — jauh lebih rapat daripada master Arduino M05, karena Pi tidak pernah benar-benar berebut CPU pada beban seringan ini.
+
+### EXP-03 — Satu Node Hilang
+
+Cabut kabel USB Slave 2 **secara fisik** (bukan hanya menutup port serial — Uno bershield LoRa memakai daya dari USB, sehingga mencabutnya mematikan seluruh node termasuk radionya) selama `master.py` berjalan, tunggu setidaknya 20 siklus, lalu pasang kembali.
+
+**Expected output — master, tepat setelah kabel dicabut**
+
+```
+=== CYCLE 5 ===
+[TX] POLL:1
+[RX] S1:DATA:5 | RSSI: -70 dBm | SNR: 12.8 dB
+[TX] POLL:2
+[FAIL] Slave 2 tidak merespon!
+--- STATISTIK ---
+S1: OK=5 | FAIL=0 | Data: 5
+S2: OK=0 | FAIL=5 | Data: None
+Durasi siklus: 605 ms
+```
+
+**Data capture**
+
+| Parameter | Hasil |
+|---|---|
+| Pesan master saat Slave 2 tidak menjawab | |
+| Durasi siklus saat Slave 2 hilang (ms) | |
+| Apakah Slave 1 terpengaruh matinya Slave 2? (cek log lokal Slave 1) | |
+| Berapa siklus sampai `OK` Slave 2 bertambah lagi setelah kabel dipasang | |
+| `dataCounter` Slave 2 setelah dipasang kembali — mulai dari berapa, dan apa artinya | |
+
+> **CHECKPOINT** — Durasi siklus melonjak dari kondisi sehat menjadi mendekati `POLL_TIMEOUT` penuh ditambah overhead, sementara Slave 1 sama sekali tidak terganggu — masih menjawab tiap `POLL:1` seperti biasa. Begitu Slave 2 tersambung kembali, ia memulai `dataCounter` dari 1: bukti bahwa yang terjadi adalah **reboot penuh**, bukan sekadar port serial yang terputus. Pemulihan di sisi master terjadi otomatis pada siklus berikutnya, tanpa intervensi apa pun.
+
+### EXP-04 — Menekan Batas Waktu Sampai Rusak
+
+Ambang kegagalan `POLL_TIMEOUT` naif diperkirakan di atas 70 ms (waktu udara `POLL` + waktu udara jawaban). Percobaan ini menunjukkan dugaan itu keliru. Ubah `POLL_TIMEOUT` di **salinan** `master.py` (jangan ubah `src/master.py` asli), jalankan tiap nilai selama 60 detik, mulai dari 500 ms turun bertahap sampai keberhasilan jatuh ke nol.
+
+**Expected output — pada nilai yang sudah terlalu kecil**
+
+```
+=== CYCLE 12 ===
+[TX] POLL:1
+[FAIL] Slave 1 tidak merespon!
+[TX] POLL:2
+[FAIL] Slave 2 tidak merespon!
+--- STATISTIK ---
+S1: OK=0 | FAIL=12 | Data: None
+S2: OK=0 | FAIL=12 | Data: None
+```
+
+**Data capture**
+
+| `POLL_TIMEOUT` (ms) | Poll berhasil | Poll gagal | Gagal (%) |
 |---|---|---|---|
-| 01 | `sender` | ✅ | 18,3 % (5.890 B) |
-| 01 | `receiver` | ✅ | 22,7 % (7.312 B) |
-| 02 | `sender` | ✅ | 22,9 % (7.380 B) |
-| 02 | `receiver` | ✅ | 24,5 % (7.916 B) |
-| 03 | `devicea` | ✅ | 26,3 % (8.486 B) |
-| 03 | `deviceb` | ✅ | 25,4 % (8.206 B) |
-| 04 | `sender` | ✅ | 23,0 % (7.424 B) |
-| 04 | `receiver` | ✅ | 26,9 % (8.686 B) |
-| 05 | `master` | ✅ | 29,6 % (9.560 B) |
-| 05 | `slave1` | ✅ | 26,3 % (8.492 B) |
-| 05 | `slave2` | ✅ | 26,3 % (8.492 B) |
-| 07 | `slave1` | ✅ | 26,4 % (8.522 B) |
-| 07 | `slave2` | ✅ | 26,4 % (8.522 B) |
+| 500 (baku) | | | |
+| 100 | | | |
+| 60 | | | |
+| 50 | | | |
+| 45 | | | |
+| 40 | | | |
 
-Modul 06 dan master Modul 07 tidak muncul pada tabel di atas karena tidak ada yang dikompilasi: keduanya Python yang dijalankan langsung. Yang diperiksa pada keduanya hanya kesahihan sintaksis (`python3 -m py_compile`), sebab `spidev` dan `RPi.GPIO` hanya dapat dipasang di Raspberry Pi. Kode aslinya berasal dari repositori Dragino LoRa GPS HAT yang menyatakan telah diuji berjalan pada Raspberry Pi 4.
+> **CHECKPOINT** — Ambangnya adalah **tebing**, bukan lereng: keberhasilan bertahan tinggi sampai satu titik, lalu jatuh mendekati nol dalam rentang sempit beberapa milidetik. Titik itu jauh **lebih rendah** daripada dugaan naif 70-an ms, karena `transmit(pollMsg)` bersifat blocking dan waktu udara `POLL` sudah "dibayar" di dalamnya, sebelum penghitung waktu mulai berjalan — lihat kembali bagian Dasar Teori. Jelaskan letak tebing itu memakai anggaran waktu yang sesungguhnya, bukan anggaran naif.
 
-**Perubahan terhadap kode asli.** Yang berubah hampir seluruhnya cara membangun dan menamai berkas, bukan isi programnya; satu-satunya perubahan perilaku adalah baris terakhir tabel:
+### Verifikasi radio (dijalankan sebelum EXP-01)
 
-| Sebelum | Sesudah | Alasan |
+`cek_radio.py` membaca balik register SX1276 di Raspberry Pi setelah `loraBegin()` + konfigurasi:
+
+```
+REG_VERSION   : 0x12   (0x12 = SX1276/77/78/79)
+FREKUENSI     : 433.000000 MHz   (target 433.000000, selisih +0.0 Hz)
+MODEM_CFG_1   : 0x72 -> BW=125 kHz | CR=4/5 | header=explicit
+MODEM_CFG_2   : 0x70 -> SF7 | CRC payload=MATI
+PA_CONFIG     : 0x8f -> PA_BOOST, power=17 dBm
+```
+
+**CRC payload mati di kedua sisi.** `LoRa.begin()` milik sandeepmistry (dipakai slave) tidak mengaktifkan CRC kecuali diminta lewat `LoRa.enableCrc()`, dan `master.py` juga tidak menyalakannya. Konsekuensinya: paket dengan payload rusak **tetap lolos** ke lapisan aplikasi sebagai paket sah, karena bendera `IRQ_CRC_ERROR` tidak pernah diminta menyala. Kegagalan seperti itu tercatat sebagai `[WARN] Balasan tidak valid` lalu `[FAIL]` — diagnosis yang menunjuk ke arah yang salah sama sekali, seolah slave tidak merespons padahal slave sudah menjawab benar.
+
+### Verifikasi hardware (log referensi)
+
+Dijalankan pada satu Raspberry Pi 5 + LoRa GPS HAT v1.4 dan dua Arduino Uno + Dragino Shield v1.2, 433 MHz, jarak ±30 cm. Log lengkap ada di `logserial.md`.
+
+| Parameter | Hasil terukur |
+|---|---|
+| Siklus dalam 50 detik (EXP-02) | **76** |
+| Durasi siklus sehat min/maks/rata-rata | **144 / 145 / 145,0 ms** |
+| Sebaran durasi siklus (Pi 5) vs master Arduino (M05) | **1 ms** vs 7 ms — Pi justru lebih rapat |
+| EXP-03: durasi siklus saat satu slave mati | **604–606 ms**, rata-rata 621,4 ms (27 siklus berturut-turut) |
+| EXP-03: pertambahan akibat satu node mati | **+460 ms** ≈ `POLL_TIMEOUT` dikurangi waktu jawaban sehat — hampir sama dengan +459 ms yang tercatat di M05 |
+| EXP-03: apakah node sehat ikut terganggu? | tidak — 0 dari 27 siklus |
+| EXP-03: pemulihan setelah node kembali | seketika, siklus berikutnya |
+| EXP-04: ambang kegagalan | tebing di **40–45 ms** — bukan ~70 ms seperti dugaan naif |
+| EXP-04: reproduksibilitas ambang | sempurna pada 6 sesi ulangan (3× titik aman, 3× titik gagal) |
+| Payload rusak lolos (CRC mati) | 0,74 % pada 8 sesi pertama, 0,00 % pada 4 sesi berikutnya — sporadis, sumbernya belum diketahui |
+
+```
+Environment    Status    Flash
+slave1         SUCCESS   26.4% (8.522 B)
+slave2         SUCCESS   26.4% (8.522 B)
+```
+
+Master tidak dikompilasi — Python dijalankan langsung di Raspberry Pi. Kedua slave berukuran identik, bukti keduanya berasal dari source yang sama dan hanya berbeda `SLAVE_ID`.
+
+**Temuan tambahan yang tidak diperbaiki secara sengaja.** Perbaikan CRC yang jelas — `LoRa.enableCrc()` di slave dan menyalakan bit yang sepadan di `REG_MODEM_CONFIG_2` pada master — **sengaja tidak diterapkan**, karena menyentuh firmware slave akan membatalkan klaim utama modul ini bahwa slave identik dengan M05. Rincian investigasinya (pola byte yang rusak, pengujian yang menyingkirkan SPI dan FIFO sebagai penyebab) ada di `logserial.md`, bagian "Temuan — Payload rusak lolos karena CRC mati". Tantangan untuk menyalakannya sendiri dan mengukur akibatnya ada di CH-2.
+
+## 7 · Pengukuran
+
+**A. Keberhasilan terhadap jarak** — kedua slave ditempatkan pada jarak sama dari Raspberry Pi, 30 siklus per baris.
+
+| Jarak | RSSI S1 | RSSI S2 | OK/FAIL S1 | OK/FAIL S2 | Keberhasilan S1 (%) | Keberhasilan S2 (%) |
+|---|---|---|---|---|---|---|
+| 1 m | | | | | | |
+| 25 m | | | | | | |
+| 50 m | | | | | | |
+| 100 m | | | | | | |
+
+**B. Perbandingan platform master** — bandingkan langsung dengan `week05_lora_master_slave/logserial.md`.
+
+| Ukuran | Master Raspberry Pi 5 (modul ini) | Master Arduino Uno (M05) |
 |---|---|---|
-| Berkas `.ino` per folder | `src/<peran>/main.cpp` + `platformio.ini` | Mengikuti alur PlatformIO seperti lab WSN-IOT-prak |
-| `#define DEVICE_A` disunting manual (M03) | build flag `-DDEVICE_A` pada environment | Satu source untuk dua board; menghilangkan risiko lupa mengembalikan |
-| `slave1.ino` dan `slave2.ino` terpisah (M05) | satu `slave/main.cpp` + `-DSLAVE_ID=n` | Kedua slave identik kecuali nomornya |
-| Port ditulis `COM8`/`COM9` di komentar | `upload_port` di `platformio.ini` | Port terkumpul di satu tempat, tidak tersebar di komentar |
-| `01a-sender.py` / `01b-receiver.py` (M06) | `src/sender.py` / `src/receiver.py` | Tata letak `src/` seragam dengan seluruh modul lain |
-| Nama modul disebut di docstring sebagai contoh lepas | Docstring menunjuk modul lab yang dicerminkannya | Tiap berkas Python menyebut padanan Arduino-nya secara langsung |
-| Pesan pembuka slave M07 tertulis mati `POLL:1` | Menyebut `SLAVE_ID` yang sesungguhnya | Slave 2 tidak lagi mencetak `Menunggu POLL:1`. Cacat yang sama sempat ada juga di M05, ditemukan dan diperbaiki lewat pengujian perangkat 21 Agustus 2026 |
+| Durasi siklus minimum (ms) | | 147 |
+| Durasi siklus maksimum (ms) | | 154 |
+| Durasi siklus rata-rata (ms) | | 152 |
+| Sebaran (maks − min, ms) | | 7 |
 
-## Referensi
+**C. Ambang `POLL_TIMEOUT`** — ulangi EXP-04 tiga kali pada dua titik: nilai terkecil yang masih 100 % andal, dan nilai terbesar yang sudah gagal total.
 
-**Arduino — shield (M01–M05, slave M07)**
+| Percobaan ke- | Nilai terkecil andal (ms) | Nilai pertama gagal total (ms) |
+|---|---|---|
+| 1 | | |
+| 2 | | |
+| 3 | | |
 
-- [Dragino LoRa Shield — repositori resmi](https://github.com/dragino/Lora/tree/master/Lora%20Shield)
-- [Skematik Shield v1.2 (PDF)](skematik/Lora%20Shield%20v1.2.sch.pdf)
-- [Library LoRa by sandeepmistry](https://github.com/sandeepmistry/arduino-LoRa)
+**D. Rasio payload rusak lolos** — hitung dari sesi gabungan EXP-02 dan EXP-04 milikmu sendiri.
 
-**Raspberry Pi — HAT (M06, master M07)**
+| Sesi | Paket diterima | Paket dengan `[WARN] Balasan tidak valid` | Rasio (%) |
+|---|---|---|---|
+| | | | |
 
-- [Wiki Dragino — Lora/GPS HAT](https://wiki1.dragino.com/index.php?title=Lora/GPS_HAT)
-- [Dragino LoRa GPS HAT v1.4 — repositori resmi](https://github.com/dragino/Lora/tree/master/Lora_GPS%20HAT/v1.4)
-- [Skematik LoRa GPS HAT v1.4 (PDF)](skematik/Lora%20GPS%20HAT%20for%20RPi%20v1.4.pdf)
-- [User Manual LoRa GPS HAT v1.0 (PDF)](dokumen/LoRa_GPS_HAT_UserManual_v1.0.pdf)
+## 8 · Analisis
 
-**Umum**
+1. Dari tabel B, sebutkan dua kemungkinan penyebab master Raspberry Pi memiliki sebaran durasi siklus lebih rapat daripada master Arduino, dan jelaskan mengapa `POLL_TIMEOUT` yang longgar (500 ms) membuat perbedaan itu tidak pernah terlihat pada durasi siklus akhir.
+2. Dari tabel C, hitung anggaran waktu tunggu sesungguhnya (bukan naif) menggunakan waktu udara jawaban dari bagian Dasar Teori M05. Apakah nilai ambang yang kamu temukan cocok dengan hitungan itu? Jelaskan selisihnya bila ada.
+3. Pada EXP-03, mengapa siklus pertama setelah master baru dinyalakan bisa mencatat **kedua** slave gagal sekaligus, dan berapa perkiraan durasinya dibandingkan satu slave gagal?
+4. Dari tabel D, apakah rasio payload rusak berkorelasi dengan jumlah siklus dalam sesi, durasi sesi, atau tidak keduanya? Kaitkan jawabanmu dengan status "belum diketahui" pada temuan CRC di `logserial.md`.
+5. `master.py` menghitung `[WARN] Balasan tidak valid` sebagai `[FAIL]` yang sama dengan slave yang benar-benar tidak menjawab. Usulkan satu cara membedakan keduanya dari sisi statistik master saja, tanpa mengubah firmware slave.
+6. Bandingkan pekerjaan memindahkan master ke Raspberry Pi (modul ini) dengan pekerjaan memindahkan protokol seluruhnya ke LoRaWAN. Sebutkan satu keuntungan dan satu kerugian pendekatan "gateway custom" dibanding memakai protokol siap pakai.
 
-- [Datasheet SX1276](https://www.semtech.com/products/wireless-rf/lora-connect/sx1276)
+## 9 · Concept Check
+
+1. Mengapa firmware slave tidak perlu tahu bahwa masternya sekarang Raspberry Pi, bukan Arduino?
+2. Sebutkan dua cara mengorelasikan log dari dua mesin yang tidak berbagi jam, selain nomor urut payload.
+3. Kenapa `POLL_TIMEOUT` tidak menghitung waktu udara `POLL` itu sendiri? Fungsi mana di `master.py` yang menjadi penyebabnya?
+4. Apa yang terjadi pada paket yang payload-nya rusak satu bit ketika CRC payload mati, dan mengapa `parsePacket()` tetap menyerahkannya ke aplikasi?
+5. Mengapa modul ini tidak menyalakan CRC meskipun penyebabnya jelas dan perbaikannya sederhana?
+6. Apa perbedaan mendasar antara "slave tidak menjawab" (`[FAIL]`) dan "jawaban rusak" (`[WARN]`) dari sudut pandang radio, dan mengapa master saat ini tidak membedakan keduanya dalam statistik `OK`/`FAIL`?
+
+## 10 · Challenge (tugas modifikasi)
+
+- **CH-1 — Slave ketiga.** Tambahkan Uno ketiga dengan `SLAVE_ID=3`: satu environment PlatformIO baru, dan penyesuaian `SLAVE_COUNT` serta pemanggilan `pollSlave(3, ...)` di `master.py`. Ukur pertambahan lama siklus dan bandingkan dengan hasil CH-1 pada M05.
+- **CH-2 — Nyalakan CRC.** Tambahkan `LoRa.enableCrc()` di `src/slave/main.cpp` **dan** set bit yang sepadan di `REG_MODEM_CONFIG_2` pada `master.py`. Jalankan ulang tabel D dan bandingkan rasio payload rusak yang lolos. Perhatikan: ini mengubah firmware slave, sehingga klaim "identik dengan M05" tidak lagi berlaku — jelaskan trade-off-nya di laporan.
+- **CH-3 — Bedakan FAIL dan WARN.** Ubah `pollSlave()` di `master.py` agar mencatat statistik terpisah untuk "tidak menjawab sama sekali" versus "menjawab tapi rusak". Ukur apakah rasio keduanya berubah seiring durasi sesi.
+- **CH-4 — Jadwal adaptif lintas platform.** Port ide CH-4 M05 (lewati slave yang gagal tiga kali berturut-turut, tengok kembali tiap sepuluh siklus) ke `master.py`. Ukur perbaikan durasi siklus saat satu node mati, bandingkan dengan hasil EXP-03.
+- **CH-5 — Korelasi RSSI lintas mesin.** Jalankan `lora_monitor.py --out sesi.csv` di laptop bersamaan dengan `master.py` di Raspberry Pi selama sepuluh menit. Gabungkan kedua rekaman berdasarkan nomor urut, lalu buat satu grafik RSSI dari kedua arah (slave→master dan master→slave) terhadap waktu.
+
+## 11 · Laporan
+
+**Deliverable**
+
+1. Misi dan capaian pembelajaran
+2. Dasar teori ringkas — mengapa slave tidak perlu tahu platform master, anggaran waktu sesungguhnya `POLL_TIMEOUT`, konsekuensi CRC mati
+3. Bukti `diff` bahwa firmware slave tidak berubah dari M05
+4. Hasil eksperimen — keluaran terminal EXP-01…04 dari **kedua sisi** (master di Raspberry Pi, slave di laptop) beserta checkpoint, dan hasil `cek_radio.py`
+5. Data pengukuran — tabel A, B, C, dan D pada bagian Pengukuran
+6. Analisis dan concept check, termasuk hitungan anggaran waktu `POLL_TIMEOUT`
+7. Challenge — minimal CH-1 dan CH-3
+8. Kesimpulan yang disusun sendiri mengenai apa yang berubah dan apa yang tidak berubah ketika penjadwal jaringan LoRa dipindahkan dari mikrokontroler ke gateway Linux
