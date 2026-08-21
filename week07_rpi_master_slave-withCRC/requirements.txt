@@ -1,0 +1,15 @@
+# Modul 07 - dependensi Raspberry Pi (jalankan DI Raspberry Pi, bukan di PC)
+#
+#     pip3 install -r week07_rpi_master_slave/requirements.txt
+#
+# spidev  : akses /dev/spidev0.0 untuk bicara ke SX1276
+# RPi.GPIO: kendali jalur NSS, RESET, dan pembacaan DIO0
+#
+# RASPBERRY PI 5. Chip GPIO baru (RP1) tidak didukung RPi.GPIO. Ganti baris
+# RPi.GPIO di bawah dengan rpi-lgpio -- drop-in replacement dengan nama modul
+# yang sama, sehingga `import RPi.GPIO as GPIO` di kode tetap berjalan apa
+# adanya. Jangan memasang keduanya sekaligus: keduanya memakai nama paket
+# yang sama dan akan saling menimpa.
+spidev>=3.5
+RPi.GPIO>=0.7.1
+# rpi-lgpio>=0.6     ; khusus Raspberry Pi 5 -- pakai INI dan hapus RPi.GPIO di atas
