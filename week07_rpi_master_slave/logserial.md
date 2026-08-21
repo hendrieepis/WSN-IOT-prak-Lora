@@ -151,6 +151,63 @@ Master Linux justru **lebih rapat** sebarannya daripada master Arduino, dan sedi
 
 Kedua pengukuran sepakat. Penjelasan yang masuk akal: Pi 5 berinti empat pada beban hampir nol, sehingga proses Python praktis tidak pernah benar-benar berebut CPU; dan `POLL_TIMEOUT` 500 ms sedemikian longgar dibanding waktu tanggap sebenarnya (±45 ms, lihat EXP-04) sehingga penundaan beberapa milidetik tidak pernah mengubah hasil. Sebaran ini bukan bantahan terhadap teori di README — jitter tetap ada secara prinsip — melainkan bukti bahwa pada beban serendah ini besarnya tidak terukur oleh alat yang dipakai modul ini.
 
+## EXP-03 — Satu Node Hilang
+
+Slave 2 dicabut kabel USB-nya sepenuhnya (bukan sekadar port serial ditutup — Uno bershield LoRa memakai daya dari USB, jadi mencabutnya mematikan seluruh node termasuk radionya) selama `master.py` berjalan, lalu dipasang kembali di tengah sesi. Slave 1 tetap dipantau lewat serial lokal selama percobaan berlangsung untuk memastikan node sehat tidak ikut terganggu.
+
+```
+=== CYCLE 1 ===
+[TX] POLL:1
+[FAIL] Slave 1 tidak merespon!
+[TX] POLL:2
+[FAIL] Slave 2 tidak merespon!
+--- STATISTIK ---
+Durasi siklus: 1065 ms
+========================================
+=== CYCLE 2 ===
+[TX] POLL:1
+[RX] S1:DATA:1 | RSSI: -70 dBm | SNR: 12.8 dB
+[TX] POLL:2
+[FAIL] Slave 2 tidak merespon!
+--- STATISTIK ---
+S1: OK=1 | FAIL=1 | Data: 1
+S2: OK=0 | FAIL=2 | Data: None
+Durasi siklus: 604 ms
+...
+=== CYCLE 28 ===
+[TX] POLL:1
+[RX] S1:DATA:27 | RSSI: -70 dBm | SNR: 13.0 dB
+[TX] POLL:2
+[FAIL] Slave 2 tidak merespon!
+--- STATISTIK ---
+S1: OK=27 | FAIL=1 | Data: 27
+S2: OK=0 | FAIL=27 | Data: None
+Durasi siklus: 605 ms
+=== CYCLE 29 ===
+[TX] POLL:1
+[RX] S1:DATA:28 | RSSI: -71 dBm | SNR: 12.8 dB
+[TX] POLL:2
+[RX] S2:DATA:1 | RSSI: -64 dBm | SNR: 13.8 dB
+--- STATISTIK ---
+S1: OK=28 | FAIL=1 | Data: 28
+S2: OK=1 | FAIL=27 | Data: 1
+Durasi siklus: 144 ms
+```
+
+| Parameter | Hasil |
+|---|---|
+| Siklus 1 — kedua slave gagal (start-up master mendahului kesiapan radio) | Durasi **1065 ms**, kira-kira dua `POLL_TIMEOUT` penuh |
+| Siklus 2–28 — Slave 2 hilang (27 siklus berturut-turut) | Durasi stabil **604–606 ms**, rata-rata **621,4 ms** |
+| Siklus 29 — Slave 2 kembali | Langsung `OK`, `S2:DATA:1` — `dataCounter` slave mulai dari 1 (bukti Uno benar-benar reboot, bukan cuma port serial terputus) |
+| Siklus 30 dst. — steady state | Durasi kembali **144–145 ms**, rata-rata 144,8 ms |
+| Slave 1 selama Slave 2 hilang | **OK di seluruh 27 siklus** — 79 baris `[TX] S1:DATA:n` lokal, `[IGNORE] POLL:2` 79× tanpa gangguan |
+| Pertambahan durasi akibat satu node mati | **604,8 − 144,8 ≈ 460 ms**, ≈ `POLL_TIMEOUT` (500 ms) dikurangi waktu jawaban sehat |
+| Pemulihan | **Seketika** — satu siklus setelah Slave 2 tersambung kembali, tanpa intervensi di sisi master |
+
+**CHECKPOINT terpenuhi, dan sekarang dengan data sungguhan.** Catatan lama di bagian "Catatan pengambilan log" menyimpulkan pertambahan +460 ms hanya dari poll individual yang gagal sesekali, tanpa benar-benar mencabut node. Sesi ini mengonfirmasinya secara langsung: 27 siklus berturut-turut dengan Slave 2 mati, tidak satu pun memengaruhi Slave 1, dan durasi siklus melonjak persis sebesar satu `POLL_TIMEOUT` dikurangi waktu tanggap sehat (605 − 145 ≈ 460 ms) — sama seperti prediksi CHECKPOINT EXP-03 M05, dan sama dengan angka +459 ms yang tercatat di `week05_lora_master_slave/logserial.md` untuk skenario setara.
+
+**Siklus 1 (1065 ms) bukan anomali — konsisten dengan dua timeout penuh.** Master mulai polling sebelum Slave 1 (yang baru saja diunggah ulang) selesai boot, sehingga siklus pertama kehilangan **kedua** slave sekaligus: 2 × ~500 ms `POLL_TIMEOUT` plus overhead, hasilnya 1065 ms — persis nilai yang sudah tercatat sebagai temuan tersendiri di bagian ini sebelum EXP-03 pernah dijalankan langsung.
+
 ## EXP-04 — Menekan Batas Waktu Sampai Rusak
 
 `POLL_TIMEOUT` diturunkan bertahap, tiap nilai dijalankan **60 detik**. Nilai diberikan lewat environment ke salinan `master.py`, sehingga `src/master.py` tidak pernah diubah.
@@ -277,7 +334,7 @@ Durasi siklus: 605 ms
 
 ## Catatan pengambilan log
 
-- **EXP-03 belum dijalankan.** Percobaan itu menuntut kabel USB slave 2 dicabut secara fisik saat sistem berjalan, dan pengujian ini dikerjakan dari jarak jauh. Bagian dari perilakunya tetap teramati: setiap poll yang gagal menaikkan durasi siklus dari 145 ms menjadi **605 ms**, bertambah **+460 ms** — sesuai ramalan CHECKPOINT EXP-03 bahwa pertambahannya mendekati satu `POLL_TIMEOUT` dikurangi waktu jawaban sehat. Pada satu siklus yang **kedua** slave-nya gagal, durasinya 1065 ms, konsisten dengan dua batas waktu penuh.
+- **EXP-03 sudah dijalankan** pada sesi 21 Agustus 2026 (lihat bagian EXP-03 di atas) — kabel USB Slave 2 dicabut fisik dan dipasang kembali sementara operator hadir langsung di lokasi board, master tetap dijalankan dari jarak jauh lewat SSH.
 - **Tabel jarak (Pengukuran B) belum terisi.** Seluruh percobaan dijalankan di satu meja pada jarak tetap ±30 cm.
 - Kolom M05 pada tabel perbandingan lama siklus diisi dari `week05_lora_master_slave/logserial.md`, bukan dari pengukuran ulang pada sesi ini.
 - Membuka port serial me-**reset** Arduino lewat DTR, sehingga `RX#` dan `dataCounter` slave kembali ke 1 sementara penghitung master terus berjalan. Bila kedua angka perlu sebanding, jalankan perekam serial lebih dahulu, baru master.

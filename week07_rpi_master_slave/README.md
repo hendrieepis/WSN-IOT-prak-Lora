@@ -258,7 +258,7 @@ Port di tiap `platformio.ini` masih memakai nilai contoh untuk tiga Uno asli. Ja
 
 ## Status verifikasi
 
-Seluruh modul Arduino dikompilasi ulang setelah dikonversi ke PlatformIO. **Pengujian di perangkat keras belum dilakukan pada konversi ini** — tidak ada Arduino Uno bershield LoRa maupun Raspberry Pi bershield LoRa GPS HAT yang tersambung saat penyusunan. Perilaku yang dijelaskan di tiap README berasal dari kode sumber asli beserta dokumentasinya, bukan dari pengamatan ulang. Angka pada tabel pengukuran memang disediakan kosong untuk diisi praktikan.
+Seluruh modul Arduino dikompilasi ulang setelah dikonversi ke PlatformIO. Modul 05 dan Modul 07 sudah diuji langsung di perangkat keras (tiga Arduino Uno bershield Dragino, satu Raspberry Pi 5 bershield LoRa GPS HAT) — rincian sesi dan angka terukurnya ada di `week05_lora_master_slave/logserial.md` dan `week07_rpi_master_slave/logserial.md`. Modul 01–04 dan Modul 06 belum diuji ulang pada konversi ini; perilaku yang dijelaskan di README-nya berasal dari kode sumber asli beserta dokumentasinya, bukan dari pengamatan ulang. Angka pada tabel pengukuran modul yang belum diuji tetap disediakan kosong untuk diisi praktikan.
 
 | Modul | Environment | Build | Flash (dari 32.256 B) |
 |---|---|---|---|
@@ -288,7 +288,7 @@ Modul 06 dan master Modul 07 tidak muncul pada tabel di atas karena tidak ada ya
 | Port ditulis `COM8`/`COM9` di komentar | `upload_port` di `platformio.ini` | Port terkumpul di satu tempat, tidak tersebar di komentar |
 | `01a-sender.py` / `01b-receiver.py` (M06) | `src/sender.py` / `src/receiver.py` | Tata letak `src/` seragam dengan seluruh modul lain |
 | Nama modul disebut di docstring sebagai contoh lepas | Docstring menunjuk modul lab yang dicerminkannya | Tiap berkas Python menyebut padanan Arduino-nya secara langsung |
-| Pesan pembuka slave M07 tertulis mati `POLL:1` | Menyebut `SLAVE_ID` yang sesungguhnya | Slave 2 tidak lagi mencetak `Menunggu POLL:1` — cacat kecil yang masih ada di M05 |
+| Pesan pembuka slave M07 tertulis mati `POLL:1` | Menyebut `SLAVE_ID` yang sesungguhnya | Slave 2 tidak lagi mencetak `Menunggu POLL:1`. Cacat yang sama sempat ada juga di M05, ditemukan dan diperbaiki lewat pengujian perangkat 21 Agustus 2026 |
 
 ## Referensi
 
