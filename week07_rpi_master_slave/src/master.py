@@ -29,6 +29,7 @@ Prasyarat:
     pip3 install -r week07_rpi_master_slave/requirements.txt
 """
 
+import argparse
 import time
 import sys
 import spidev
@@ -303,7 +304,30 @@ def pollSlave(slaveNum, okRef, failRef):
 # ══════════════════════════════════════════════════════════════════════════════
 # Main (identik dengan setup() + loop() di master.ino)
 # ══════════════════════════════════════════════════════════════════════════════
+def build_arg_parser():
+    parser = argparse.ArgumentParser(
+        prog="master.py",
+        description=(
+            "Master round-robin M07 (Raspberry Pi + Dragino LoRa GPS HAT). "
+            "Memanggil Slave 1 lalu Slave 2 bergiliran tanpa henti, mencetak "
+            "statistik OK/FAIL per node setiap siklus. Tidak ada opsi lain -- "
+            "seluruh parameter (frekuensi, SF, BW, timeout) ditetapkan sebagai "
+            "konstanta di berkas ini agar tetap identik dengan slave M05."
+        ),
+        epilog=(
+            f"Parameter radio: {FREQUENCY / 1e6:.0f} MHz, SF{SPREADING_FACTOR}, "
+            f"BW {BANDWIDTH / 1e3:.0f} kHz, CR 4/5, {TX_POWER} dBm. "
+            f"POLL_TIMEOUT={POLL_TIMEOUT} ms, CYCLE_INTERVAL={CYCLE_INTERVAL} ms. "
+            "Hentikan dengan Ctrl-C."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    return parser
+
+
 if __name__ == '__main__':
+    build_arg_parser().parse_args()
+
     cycle = 0
     s1Ok = [0]; s1Fail = [0]; s1Data = 0
     s2Ok = [0]; s2Fail = [0]; s2Data = 0

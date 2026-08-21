@@ -237,6 +237,44 @@ Pembacaan FIFO tiga kali yang selalu identik adalah uji penentunya: **byte rusak
 
 Perbaikan yang jelas — `LoRa.enableCrc()` di slave dan menyalakan bit 2 `REG_MODEM_CONFIG_2` di master — **tidak diterapkan**, karena menyentuh firmware slave dan dengan demikian membatalkan klaim utama modul ini bahwa slave identik dengan M05. Itu keputusan perancang modul, bukan keputusan penguji. Sebagai bahan praktikum, keadaan ini justru lebih berharga dibiarkan: ia memperlihatkan satu lapisan pelindung yang tidak dipasang, dan akibatnya terhadap diagnosis di lapisan atas.
 
+## Verifikasi ulang — 21 Agustus 2026
+
+Sesi verifikasi baru: kedua slave dibangun ulang dari `src/` saat ini dan diunggah ulang (`pio run -e slave1|slave2 -t upload`, keduanya SUCCESS, flash 8.522 B terverifikasi avrdude), master dijalankan langsung dari sumbernya di Raspberry Pi lewat SSH (`python3 -u src/master.py`, tanpa perubahan). Tujuannya memastikan konversi PlatformIO M07 masih berjalan seperti didokumentasikan di atas, bukan mengulang investigasi CRC.
+
+**Board & Port sesi ini** — berbeda dari tabel "Board & Port" di atas karena hanya dua Uno yang tersambung ke laptop pengembang saat ini: Slave 1 di `/dev/ttyACM1`, Slave 2 di `/dev/ttyACM2` (bukan `ACM0`/`ACM1`). Ini contoh nyata alasan README menyuruh menjalankan `tools/deteksi_port.py` dan memakai `--upload-port` eksplisit alih-alih mengandalkan nilai contoh di `platformio.ini`.
+
+```
+=== CYCLE 3 ===
+[TX] POLL:1
+[RX] S1:DATA:47 | RSSI: -76 dBm | SNR: 13.0 dB
+[TX] POLL:2
+[WARN] Balasan tidak valid: S?:DATA:27
+[FAIL] Slave 2 tidak merespon!
+--- STATISTIK ---
+S1: OK=3 | FAIL=0 | Data: 47
+S2: OK=2 | FAIL=1 | Data: None
+Durasi siklus: 605 ms
+```
+
+| Parameter | Hasil |
+|---|---|
+| Siklus dalam ±35 detik | **46** |
+| Durasi siklus steady-state min/maks/rata-rata | 145 / 145 / **145,0 ms** (n=45, mengecualikan 1 timeout) |
+| Slave 1: OK / FAIL | 46 / 0 → **100 %** |
+| Slave 2: OK / FAIL | 45 / 1 → **97,8 %** |
+| Penyebab satu-satunya FAIL | 1 byte payload rusak (`S1:DATA:27` → `S :DATA:27`), pola sama dengan temuan "Payload rusak lolos karena CRC mati" di atas |
+| SNR balasan Slave 1 di master | rata-rata **13,2 dB** (n=46) |
+| SNR balasan Slave 2 di master | rata-rata **13,3 dB** (n=45) |
+| RSSI balasan Slave 1 / Slave 2 di master | −69,4 dBm / −65,8 dBm (sepadan, tidak ada node yang janggal) |
+
+**Tidak ada anomali seperti pada M05.** Modul 05 sempat mencatat SNR Slave 2 anjlok ke ~1,2 dB akibat Slave 2 duduk terlalu dekat dengan master (near-field). Pada sesi M07 ini, SNR kedua slave hampir identik (13,2 vs 13,3 dB) dan RSSI keduanya wajar — tidak ada indikasi kejenuhan penerima di sisi mana pun.
+
+**Tampilan Uno vs tampilan Raspberry Pi cocok satu sama lain.** Log slave lokal (dibaca langsung dari `/dev/ttyACM1` dan `/dev/ttyACM2`) menunjukkan `[TX] S1:DATA:n` dan `[TX] S2:DATA:n` yang nomornya berurutan dengan `[RX] S1:DATA:n`/`S2:DATA:n` pada log master di Raspberry Pi — mengonfirmasi kedua sisi memang saling bicara lewat radio, bukan kebetulan dua proses berjalan sendiri-sendiri.
+
+**Catatan pelaksanaan.** Saat keluarannya dipipa lewat SSH (bukan TTY interaktif), Python membuffer stdout — memakai `timeout` untuk membatasi durasi lalu memutus prosesnya membuang isi buffer yang belum sempat di-flush. Jalankan dengan `python3 -u` saat keluarannya perlu direkam lewat pipa/redirect.
+
+`master.py` sebelumnya tidak punya opsi `--help` — argumen apa pun diabaikan begitu saja dan sesi langsung berjalan, seperti yang terjadi saat pertama kali dicoba pada sesi ini. Sudah ditambahkan `argparse` dengan `-h`/`--help` yang mencetak parameter radio (frekuensi, SF, BW, `POLL_TIMEOUT`, `CYCLE_INTERVAL`) tanpa menyentuh SPI/GPIO, dan argumen tak dikenal sekarang ditolak dengan pesan `usage` alih-alih diam-diam diabaikan. Tidak ada opsi baru selain `-h`; perilaku tanpa argumen tidak berubah (diverifikasi ulang: 10 siklus bersih, 100 % OK).
+
 ## Catatan pengambilan log
 
 - **EXP-03 belum dijalankan.** Percobaan itu menuntut kabel USB slave 2 dicabut secara fisik saat sistem berjalan, dan pengujian ini dikerjakan dari jarak jauh. Bagian dari perilakunya tetap teramati: setiap poll yang gagal menaikkan durasi siklus dari 145 ms menjadi **605 ms**, bertambah **+460 ms** — sesuai ramalan CHECKPOINT EXP-03 bahwa pertambahannya mendekati satu `POLL_TIMEOUT` dikurangi waktu jawaban sehat. Pada satu siklus yang **kedua** slave-nya gagal, durasinya 1065 ms, konsisten dengan dua batas waktu penuh.
