@@ -306,12 +306,18 @@ Dijalankan pada tiga Arduino Uno bershield Dragino LoRa v1.2, 433 MHz, jarak ±3
 
 ```
 Environment    Status    Flash
-master         SUCCESS   29.6% (9560 B)
+master         SUCCESS   29.7% (9574 B)
 slave1         SUCCESS   26.3% (8492 B)
 slave2         SUCCESS   26.3% (8492 B)
 ```
 
 Master paling besar karena memuat penjadwal dan statistik dua node. Kedua slave berukuran sama persis — bukti bahwa keduanya berasal dari source yang sama dan hanya berbeda nilai `SLAVE_ID`.
+
+**Verifikasi ulang — 21 Agustus 2026.** Ketiga board diunggah ulang dan direkam 40 detik pada konfigurasi port yang berbeda dari log di atas (ketiganya kini Uno asli, `ttyACM0/1/2`, bukan lagi klon CH340). Lama siklus steady-state **147–149 ms, rata-rata 148,0 ms** (n=59) — sejalan dengan sesi sebelumnya. Balasan Slave 2 pada sesi ini sempat menunjukkan **SNR rendah tak wajar** (rata-rata 1,23 dB, mirip tanda tabrakan pada tabel EXP-04) meski Slave 2 sendiri menerima `POLL:2` dengan bersih (9,00 dB) — gangguannya ada di penerimaan master, bukan di Slave 2.
+
+**Anomali itu terselesaikan pada sesi lanjutan hari yang sama**, setelah bug banner startup diperbaiki (lihat catatan di bawah) dan kedua slave diunggah ulang: RSSI balasan Slave 2 turun dari −39 dBm menjadi **−61 dBm** — sepadan dengan Slave 1 (−65 dBm) — dan SNR-nya kembali normal, **rata-rata 9,34 dB** dari 60 balasan, tidak satu pun di bawah 5 dB. Dugaannya terkonfirmasi: pada sesi anomali, Slave 2 kemungkinan besar duduk terlalu dekat dengan master, menyebabkan penerima master jenuh (near-field), bukan tabrakan sungguhan. Rincian dan tabel perbandingan kedua sesi ada di `logserial.md`, bagian "Verifikasi anomali SNR — sesi lanjutan 21 Agustus 2026".
+
+**Catatan perbaikan — banner yang berbohong.** Sebelum diperbaiki, `src/slave/main.cpp` mencetak `Serial.println(F("Menunggu POLL:1 dari Master...\n"))` sebagai literal tetap, tidak memakai `SLAVE_ID` — sehingga Slave 2 pun mencetak "menunggu POLL:1" di layarnya sendiri, padahal logika penyaringannya (`received.equals("POLL:" + String(SLAVE_ID))`) sudah benar sejak awal. Bug ini murni kosmetik — tidak memengaruhi jawaban maupun statistik — tapi cukup untuk menyesatkan siapa pun yang mendiagnosis dari banner saja. Baris itu sekarang `Serial.print(F("Menunggu POLL:")); Serial.print(SLAVE_ID);` — bukti bahwa dua baris kode yang tampak sepele pun bisa diam-diam salah selama tidak ada yang membandingkannya dengan `SLAVE_ID` sungguhan.
 
 ## 7 · Pengukuran
 

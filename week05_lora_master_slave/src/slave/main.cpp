@@ -71,7 +71,7 @@ void setup() {
 
   Serial.println(F("OK"));
   Serial.print(F("Freq: ")); Serial.print(FREQUENCY / 1E6); Serial.println(F(" MHz"));
-  Serial.println(F("Menunggu POLL:1 dari Master...\n"));
+  Serial.print(F("Menunggu POLL:")); Serial.print(SLAVE_ID); Serial.println(F(" dari Master...\n"));
 }
 
 void loop() {
