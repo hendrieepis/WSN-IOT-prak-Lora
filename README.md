@@ -104,10 +104,13 @@ Kontrak yang sama itu pula yang membuat dua modul terakhir dapat disambungkan si
 | 08B | `week08b_lora_aloha_ack` | Finally Know | bintang, 2 node | interrupt + timeout | Intermediate |
 | 09 | `week09_lora_aloha_retry` | Try Again, Randomly | bintang, 2 node | interrupt + timeout + retry | Advanced |
 | 10 | `week10_lora_slotted_aloha` | Take a Number | bintang, 2 node | interrupt + SYNC + slot | Advanced |
+| 11 | `week11_lorawan_chirpstack` | Let the Protocol Take Over | bintang, 2 node + server | LoRaWAN Class A (LMIC) | Advanced |
 
 Modul 01–05 memakai Arduino Uno + Dragino LoRa Shield v1.2. Modul 06 memakai dua Raspberry Pi + LoRa GPS HAT v1.4. Modul 07 mencampur keduanya: Raspberry Pi sebagai master, dua Arduino Uno sebagai slave.
 
 **Arc kedua — akses kanal tanpa penjadwal terpusat.** Modul 01–07 di atas adalah satu seri utuh yang berakhir di M07. Modul 08 dan seterusnya membuka arc baru di atas Arduino Uno + Dragino LoRa Shield v1.2 (topologi sama seperti M05, dua node + satu gateway), yang sengaja **membalik** premis M05/M07: alih-alih menjadwalkan giliran bicara dari pusat, node dibiarkan mengirim data dummy suhu & kelembaban dua ruangan kapan saja, dan setiap pertemuan menambah **satu** lapisan kendali kanal — M08 (Pure ALOHA, tanpa balasan sama sekali), M08B (ditambah ACK), M09 (ditambah random backoff + retry, dan gateway mulai mengenali paket duplicate lewat SEQ), lalu M10 (SYNC + slot waktu, retry M09 dihapus dan digantikan penjadwalan) yang menutup arc ini. Dua mode dibandingkan langsung pada M10: Assigned Slot (tabrakan hilang struktural) dan Random Slot (tabrakan tetap mungkin, meski lebih jarang daripada M08). Detail lengkap tiap modul ada di README masing-masing folder.
+
+**Arc ketiga — protokol mengambil alih.** Modul 11 menutup pertanyaan yang menggantung sejak M04: semua yang dibangun sendiri di lapisan aplikasi — alamat node, ACK, nomor urut, retry, giliran bicara — sudah lama distandarkan orang lain, dan namanya LoRaWAN. Di modul ini kedua Arduino Uno menjalankan stack LoRaWAN Class A (MCCI LMIC) dan join lewat OTAA ke ChirpStack v4 yang berjalan di Raspberry Pi 5, dengan Pi yang sama merangkap **single channel gateway** memakai driver register lanjutan M06. Payload-nya sengaja dibiarkan sesederhana mungkin (`T=27.4,H=68`, ASCII, tanpa encoding) supaya perhatian tertuju pada alur Register Device → OTAA Join → Uplink → data terlihat di ChirpStack, bukan pada pengemasan byte. Dua hal baru yang tidak pernah muncul di sepuluh modul sebelumnya: payload terenkripsi sehingga **gateway sendiri tidak bisa membacanya**, dan alamat perangkat yang **diberikan server**, bukan ditentukan build flag.
 
 ## Perangkat keras
 
