@@ -39,6 +39,7 @@ import json
 import os
 import random
 import select
+import signal
 import socket
 import struct
 import sys
@@ -665,11 +666,17 @@ def main():
         sys.exit(1)
     print("OK")
 
+    # systemd menghentikan layanan dengan SIGTERM, bukan Ctrl-C. Tanpa baris
+    # ini Python langsung keluar dan blok finally di bawah tidak pernah jalan --
+    # radio ditinggal dalam mode RX dan pin GPIO tidak dilepas. Diubah menjadi
+    # KeyboardInterrupt supaya keduanya berakhir lewat jalan yang sama.
+    signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt))
+
     fwd = Forwarder(args)
     try:
         fwd.run()
     except KeyboardInterrupt:
-        print("\n\nDihentikan oleh pengguna.")
+        print("\n\nDihentikan.")
     finally:
         _set_mode(MODE_SLEEP)
         _spi.close()

@@ -196,6 +196,8 @@ week11_lorawan_chirpstack/
 └── gateway/                        ← seluruhnya dijalankan DI RASPBERRY PI
     ├── setup_chirpstack.sh         ← pasang Docker + ChirpStack v4 (sekali jalan)
     ├── siapkan_gateway.sh          ← siapkan Pi satu kelompok (kanal + kunci + EUI)
+    ├── lorawan-gateway.service     ← unit systemd, bila gateway ingin jalan otomatis
+    ├── simpan_image_docker.sh      ← bungkus image ChirpStack untuk dipindah lewat flashdisk
     ├── docker-compose.override.yml ← satu-satunya perubahan: region EU433
     ├── single_chan_pkt_fwd.py      ← gateway kanal tunggal (lanjutan M06)
     ├── uplink_listen.py            ← baca uplink kedua node lewat MQTT + CSV
@@ -675,8 +677,180 @@ sudo systemd-machine-id-setup                          #    DHCP memberi IP yang
 
 Keempat: basis data ChirpStack ikut tersalin, jadi isinya masih Gateway EUI Pi induk. Jalankan `siapkan_gateway.sh --kelompok <n> --token …` di tiap clone untuk mendaftarkan EUI Pi tersebut.
 
-Alternatif yang lebih ringan bila masalahnya memang internet: sekali saja `docker save` keenam image ke flashdisk, lalu `docker load` di Pi lain — tanpa mengulang unduhan 637 MB.
+Alternatif yang jauh lebih ringan bila masalahnya memang internet ada di B.6.
 
-### B.6 Yang sudah diuji
+### B.6 Memindahkan image lewat flashdisk, tanpa mengunduh ulang
+
+Bila beberapa Pi masing-masing perlu menjalankan ChirpStack sendiri sementara internet lab lemah, yang berat bukan pemasangan Docker-nya melainkan **unduhan image**-nya. Image itu bisa dibungkus sekali di Pi yang sudah jalan, lalu dipindahkan:
+
+```bash
+# di Pi yang ChirpStack-nya sudah berjalan
+bash gateway/simpan_image_docker.sh --keluar /media/pi/FLASHDISK/chirpstack.tar.gz
+
+# di Pi tujuan, sesudah Docker terpasang
+bash gateway/simpan_image_docker.sh --muat /media/pi/FLASHDISK/chirpstack.tar.gz
+cd ~/chirpstack-docker && docker compose up -d
+```
+
+Daftar image tidak diketik manual, melainkan dibaca dari `docker-compose.yml` (`docker compose config --images`), sehingga tidak mungkin ketinggalan bila ChirpStack suatu saat menambah komponen. Kompresinya memakai `pigz` bila tersedia — Raspberry Pi 5 punya empat inti, dan `gzip` biasa hanya memakai satu.
+
+Diukur di Pi lab ini: **6 image, 637 MB di dalam Docker → 165 MB** setelah dibungkus, **6,5 detik** untuk menyimpan dan **10,7 detik** untuk memuat kembali.
+
+Dua hal yang **tidak** diselesaikan cara ini:
+
+1. **Docker engine-nya sendiri tetap harus terpasang** di Pi tujuan. Yang dihemat hanya unduhan image. Bila Pi tujuan benar-benar tanpa internet sama sekali, siapkan paket `.deb`-nya lebih dahulu (`apt-get install --download-only`) dari mesin yang terhubung.
+2. **Data tidak ikut terbawa.** Arsip ini berisi image, bukan volume — Pi tujuan akan menyala dengan basis data kosong, tanpa gateway dan tanpa device. Pendaftarannya diulang lewat web UI (EXP-01) atau `provision_lab.py`.
+
+### B.7 Yang sudah diuji
+
+Pemindahan image B.6 diuji di perangkat pada 2026-08-22, kedua arahnya: `docker save` menghasilkan arsip 165 MB dalam 6,5 detik, dan `--muat` mengembalikan keenam image (`Loaded image: chirpstack/chirpstack:4` dan seterusnya) dalam 10,7 detik.
 
 Skema kelompok ini diuji di perangkat pada 2026-08-22 dengan menjalankan kelompok 2 secara penuh: gateway dipindah ke 433.375 MHz, node di-flash dengan `-D KELOMPOK=2`, dan hasilnya node mengirim di 433.375 MHz (`[TX] radio: 433375 kHz DR5`), join OTAA dengan DevEUI `0011223344557702`, mendapat DevAddr `00D1C237`, lalu uplink-nya masuk ke Application **`praktikum-wsn-k2`** yang terpisah dari `praktikum-wsn` milik kelompok 1. Join berhasil pada percobaan kedua; percobaan pertamanya tidak diterima node meski JoinAccept sudah ditembakkan tepat waktu — kejadian yang sama sesekali muncul juga pada kelompok 1 dan memang sifat gateway kanal tunggal, bukan akibat pembagian kelompok.
+
+
+---
+
+## Lampiran C · Menjalankan gateway otomatis lewat systemd
+
+`single_chan_pkt_fwd.py` yang dijalankan dari terminal akan mati begitu SSH ditutup atau Pi dimatikan. Untuk praktikum itu justru tepat — baris `[RX]`/`[TX]` yang mengalir di layar adalah bahan EXP-02 sampai EXP-04. Tetapi untuk **demo yang ditinggal jalan** atau lab yang Pi-nya sering dimatikan, gateway sebaiknya hidup sendiri seperti ChirpStack.
+
+### C.1 Memasang
+
+```bash
+bash week11_lorawan_chirpstack/gateway/siapkan_gateway.sh \
+     --kelompok 1 --server 127.0.0.1 --service
+```
+
+Yang terpasang ada dua berkas, dan pemisahannya disengaja:
+
+| Berkas | Isi | Kapan disentuh |
+|---|---|---|
+| `/etc/systemd/system/lorawan-gateway.service` | cara menjalankan: pengguna, folder kerja, perintah | hampir tidak pernah |
+| `/etc/default/lorawan-gateway` | `SERVER`, `FREQ`, `OPSI` | tiap ganti kanal atau alamat server |
+
+Jadi kelompok yang pindah kanal cukup mengubah satu baris:
+
+```bash
+sudo nano /etc/default/lorawan-gateway     # FREQ=433375000
+sudo systemctl restart lorawan-gateway
+```
+
+### C.2 Perintah harian
+
+| Perintah | Artinya |
+|---|---|
+| `systemctl status lorawan-gateway` | hidup atau tidak, plus beberapa baris terakhir |
+| `journalctl -fu lorawan-gateway` | **pengganti terminal** — `[RX]`/`[TX]` mengalir seperti biasa |
+| `sudo systemctl stop lorawan-gateway` | matikan, misalnya sebelum menjalankan manual |
+| `sudo systemctl start lorawan-gateway` | nyalakan lagi |
+| `sudo systemctl disable --now lorawan-gateway` | matikan sekaligus cabut dari daftar boot |
+
+> **Jangan menjalankan skrip manual selagi layanan hidup.** Keduanya akan berebut `/dev/spidev0.0` dan register SX1276 yang sama, dan gejalanya bukan pesan galat melainkan paket yang hilang serta downlink yang kacau. Hentikan layanannya dulu.
+
+### C.3 Perilaku yang sudah diatur
+
+- **Ikut hidup saat boot** (`WantedBy=multi-user.target`, `enable` dijalankan oleh skrip).
+- **Bangun sendiri bila jatuh** — `Restart=on-failure` dengan jeda 10 detik, berguna bila HAT belum siap saat boot. Batasnya 10 percobaan per 5 menit, supaya kegagalan permanen (HAT lepas, SPI mati) tidak menjadi loop tanpa henti; sesudah itu layanan berhenti dan alasannya terbaca di `journalctl`.
+- **Berhenti dengan bersih.** systemd mengirim SIGTERM, dan skrip menanganinya sama seperti Ctrl-C: radio dikembalikan ke mode sleep, SPI ditutup, GPIO dilepas. Di journal terlihat sebagai `Dihentikan.` lalu `Radio dimatikan.`
+
+### C.4 Yang sudah diuji
+
+Diuji di perangkat pada 2026-08-22: layanan terpasang, berstatus `enabled` + `active`, dan uplink kedua node muncul di `journalctl` persis seperti saat dijalankan manual. `systemctl restart` pulih sendiri tanpa satu pun traceback, dan `systemctl stop` menghasilkan penutupan bersih (`Dihentikan.` → `Radio dimatikan.` → `Deactivated successfully`). Perilaku saat Raspberry Pi benar-benar di-*reboot* mengikuti konfigurasi yang sama seperti ChirpStack (lihat A.5) tetapi belum diuji dengan reboot sungguhan.
+
+
+---
+
+## Lampiran D · Menyiapkan Raspberry Pi 5 lain dari nol
+
+Resep lengkap dari Pi yang baru selesai di-*flash* sampai ChirpStack berjalan. Ada dua jalur: **D.2** bila Pi punya internet yang layak, **D.3** bila tidak — memakai arsip image yang sudah dibungkus (`docker save`) sehingga tidak ada unduhan ratusan MB dari Docker Hub.
+
+### D.1 Yang perlu ada lebih dulu
+
+- Raspberry Pi OS **64-bit** (lab ini diuji di Debian 13 / Pi OS berbasis trixie), SSH aktif.
+- Dragino LoRa GPS HAT terpasang dan SPI menyala. `siapkan_gateway.sh` akan menyalakan SPI sendiri bila belum, tetapi butuh satu kali reboot sesudahnya.
+- Repositori lab ini ada di Pi tersebut:
+  ```bash
+  git clone <url-repo> ~/Documents/WSN-IOT-prak-Lora
+  cd ~/Documents/WSN-IOT-prak-Lora
+  ```
+  Bila Pi tidak terhubung internet sama sekali, salin foldernya lewat flashdisk.
+
+### D.2 Jalur cepat — Pi punya internet
+
+```bash
+bash week11_lorawan_chirpstack/gateway/setup_chirpstack.sh
+```
+
+Satu perintah itu memasang Docker (lewat skrip resmi `get.docker.com`), mengambil `chirpstack-docker`, memasang penyesuaian EU433, lalu menyalakan seluruh service. Sesudah selesai, lanjut ke **D.4**.
+
+Satu hal yang sering membingungkan sesudah pemasangan pertama: perintah `docker` masih menolak dengan `permission denied ... docker.sock`. Penyebabnya keanggotaan grup `docker` baru berlaku pada sesi login berikutnya — keluar dari SSH lalu masuk lagi, atau sementara pakai `sudo`.
+
+### D.3 Jalur tanpa unduhan besar — image dari arsip
+
+Docker engine-nya tetap perlu dipasang sekali (langkah 1); yang dihemat adalah unduhan **image** yang jauh lebih besar.
+
+**1 · Pasang Docker.** Bila Pi punya internet sebentar saja, ini cukup:
+
+```bash
+curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+sudo sh /tmp/get-docker.sh
+sudo usermod -aG docker "$USER"      # keluar-masuk SSH sekali sesudah ini
+```
+
+Bila benar-benar tanpa internet, siapkan paketnya lebih dulu dari mesin yang terhubung (`sudo apt-get install --download-only docker.io`), salin berkas `.deb`-nya, lalu `sudo dpkg -i *.deb`.
+
+**2 · Ambil arsip image.** Berkasnya (165 MB, berisi keenam image) ada di pCloud:
+
+```
+https://e.pcloud.link/publink/show?code=XZ2LUy7Zku2jHxEVvXmYmoQPqWw1GVbQaI7k
+```
+
+Lewat browser cukup klik unduh. Dari terminal Pi, tautan unduhan langsungnya harus diminta dulu ke API pCloud — tautan itu **kedaluwarsa dalam beberapa jam**, jadi jangan disimpan, mintalah baru setiap kali:
+
+```bash
+CODE=XZ2LUy7Zku2jHxEVvXmYmoQPqWw1GVbQaI7k
+URL=$(curl -s "https://eapi.pcloud.com/getpublinkdownload?code=$CODE" \
+      | python3 -c 'import sys,json; d=json.load(sys.stdin); print("https://"+d["hosts"][0]+d["path"])')
+wget -O chirpstack-images.tar.gz "$URL"
+```
+
+`eapi.pcloud.com` dipakai karena tautannya beralamat `e.pcloud.link` (server Eropa); untuk tautan `u.pcloud.link` gantilah menjadi `api.pcloud.com`.
+
+Periksa hasil unduhan sebelum dipakai:
+
+```bash
+sha256sum chirpstack-images.tar.gz
+# aa10fae4a3688d7552e667128e74e2d8063af26fa003c15e5cac07ee633821a4
+```
+
+Alternatifnya tanpa internet sama sekali: salin berkas yang sama lewat flashdisk dari Pi yang sudah jalan — lihat **B.6**.
+
+**3 · Muat image ke Docker:**
+
+```bash
+bash week11_lorawan_chirpstack/gateway/simpan_image_docker.sh --muat chirpstack-images.tar.gz
+```
+
+**4 · Siapkan folder ChirpStack.** `setup_chirpstack.sh` biasanya meng-*clone* `chirpstack-docker` dari GitHub. Bila Pi tidak punya internet, salin saja foldernya (hanya ±850 KB, berisi berkas konfigurasi) dari Pi yang sudah jalan ke `~/chirpstack-docker`. Skripnya memeriksa keberadaan folder itu dan melewati proses clone bila sudah ada:
+
+```bash
+bash week11_lorawan_chirpstack/gateway/setup_chirpstack.sh
+```
+
+Image yang diperlukan sudah ada di Docker lokal, jadi `docker compose up -d` tidak akan menariknya lagi dari internet.
+
+### D.4 Menjadikan Pi itu gateway kelompok
+
+```bash
+bash week11_lorawan_chirpstack/gateway/siapkan_gateway.sh --kelompok 2 --server 192.168.1.45
+```
+
+Ganti `--server` dengan alamat Pi yang menjalankan ChirpStack — boleh Pi ini sendiri (`127.0.0.1`) bila D.2/D.3 dijalankan di sini juga. Tambahkan `--service` bila gateway ingin hidup otomatis tiap Pi menyala (**Lampiran C**). Keluarannya memuat Gateway EUI serta DevEUI/AppKey kelompok tersebut, yang tinggal didaftarkan di ChirpStack (EXP-01).
+
+Sesudah itu Pi baru ini setara dengan Pi lab: web UI di `http://<ip>:8080` (bila menjalankan server sendiri), gateway mendengarkan di kanal kelompoknya, dan node tinggal di-*upload* dengan `-D KELOMPOK=<n>` yang cocok.
+
+### D.5 Yang sudah diuji
+
+Pemasangan Docker lewat `get.docker.com` dijalankan di perangkat pada 2026-08-22 di Raspberry Pi 5 dengan Debian 13 (hasil: Docker 29.7.2, Compose v5.5.0), diikuti `setup_chirpstack.sh` sampai ChirpStack melayani web UI. Pembungkusan dan pemuatan ulang image diuji dua arah (**B.6**). Tautan pCloud di D.3 diuji pada 2026-08-23: API-nya menghasilkan tautan unduhan yang sah, berkasnya berukuran 172.701.363 byte, dan potongan awal yang diunduh identik dengan arsip asli.
+
+Yang **belum** diuji: menjalankan seluruh rangkaian D.3 di Raspberry Pi kedua yang benar-benar bersih — lab ini baru punya satu Pi.

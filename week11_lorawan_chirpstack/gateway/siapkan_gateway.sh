@@ -17,6 +17,10 @@
 #   --token TOKEN  bila diisi, sekalian daftarkan gateway + kedua node ke server
 #                  lewat REST API. Tanpa ini, pendaftaran dikerjakan praktikan
 #                  lewat web UI (itu memang inti EXP-01).
+#   --service      pasang layanan systemd, sehingga gateway ikut hidup sendiri
+#                  setiap Pi dinyalakan. Untuk demo yang ditinggal jalan; saat
+#                  praktikum justru lebih baik dijalankan manual dari terminal
+#                  supaya baris [RX]/[TX] terlihat langsung.
 #
 # Yang dikerjakan: pasang dependensi Python, nyalakan SPI bila belum, hitung
 # Gateway EUI, lalu cetak perintah persis untuk menjalankan gateway kelompok itu.
@@ -27,6 +31,7 @@ KELOMPOK=1
 SERVER=""
 DENGAN_SERVER=0
 TOKEN=""
+SERVICE=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -34,7 +39,8 @@ while [ $# -gt 0 ]; do
         --server) SERVER="$2"; shift 2 ;;
         --dengan-server) DENGAN_SERVER=1; shift ;;
         --token) TOKEN="$2"; shift 2 ;;
-        -h|--help) sed -n '2,25p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        --service) SERVICE=1; shift ;;
+        -h|--help) sed -n '2,/^$/p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *) echo "Opsi tidak dikenal: $1"; exit 1 ;;
     esac
 done
@@ -87,7 +93,44 @@ if [ -n "$TOKEN" ]; then
         --kelompok "$KELOMPOK" --api "http://${SERVER}:8090"
 fi
 
-# ── 6. Ringkasan ─────────────────────────────────────────────────────────────
+# ── 6. Layanan systemd (opsional) ────────────────────────────────────────────
+if [ "$SERVICE" = "1" ]; then
+    echo "==> Memasang layanan systemd lorawan-gateway ..."
+
+    # Frekuensi dan server ditaruh terpisah dari berkas unit, supaya ganti
+    # kanal cukup mengubah satu baris di sini lalu restart.
+    sudo tee /etc/default/lorawan-gateway >/dev/null <<TXT
+# Modul 11 - konfigurasi layanan lorawan-gateway (kelompok ${KELOMPOK}).
+# Sesudah mengubah berkas ini: sudo systemctl restart lorawan-gateway
+SERVER=${SERVER}
+FREQ=${FREQ}
+OPSI=
+TXT
+
+    sed -e "s|__USER__|${USER}|g" -e "s|__DIR__|${SRC_DIR}|g" \
+        "$SRC_DIR/lorawan-gateway.service" \
+        | sudo tee /etc/systemd/system/lorawan-gateway.service >/dev/null
+
+    # Skrip yang barangkali sedang jalan manual harus dihentikan dulu: dua
+    # proses yang memperebutkan SPI yang sama akan saling mengacaukan radio.
+    pkill -f single_chan_pkt_fwd || true
+    sleep 1
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now lorawan-gateway
+    sleep 3
+    systemctl --no-pager --lines=0 status lorawan-gateway || true
+    echo "    Lihat keluarannya:  journalctl -fu lorawan-gateway"
+fi
+
+# ── 7. Ringkasan ─────────────────────────────────────────────────────────────
+CATATAN_SERVICE=""
+if [ "$SERVICE" = "1" ]; then
+    CATATAN_SERVICE=" (layanan systemd sudah berjalan -- hentikan dulu dengan
+   'sudo systemctl stop lorawan-gateway' sebelum menjalankan manual, sebab
+   dua proses tidak boleh berebut SPI yang sama)
+"
+fi
 DEV_KK=$(printf '%02x' $((0x66 + (KELOMPOK - 1) * 0x11)))
 KEY_KK=$(printf '%02x' $((KELOMPOK - 1)))
 cat <<TXT
@@ -102,7 +145,7 @@ cat <<TXT
  Jalankan gateway:
    cd ${SRC_DIR}
    python3 single_chan_pkt_fwd.py --server ${SERVER} --freq ${FREQ}
-
+${CATATAN_SERVICE}
  Pantau data yang sudah didekripsi server:
    python3 uplink_listen.py --host ${SERVER}
 
