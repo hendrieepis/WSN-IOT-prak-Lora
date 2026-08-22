@@ -205,7 +205,8 @@ week11_lorawan_chirpstack/
 **Perintah deploy**
 
 ```bash
-# 1. DI RASPBERRY PI — server, sekali saja
+# 1. DI RASPBERRY PI — server, sekali saja (belum pernah pakai Docker?
+#    baca Lampiran A di akhir README ini lebih dulu — cukup lima perintah)
 bash week11_lorawan_chirpstack/gateway/setup_chirpstack.sh
 pip3 install -r week11_lorawan_chirpstack/gateway/requirements.txt
 #   Raspberry Pi OS Bookworm ke atas menolak pip di luar venv; pakai apt:
@@ -225,7 +226,7 @@ python3 week11_lorawan_chirpstack/gateway/uplink_listen.py
 
 - ☐ Antena terpasang pada ketiga radio (dua shield + satu HAT).
 - ☐ SPI aktif di Raspberry Pi (`ls /dev/spidev0.0`), dan `rpi-lgpio` terpasang — **bukan** RPi.GPIO asli (Pi 5).
-- ☐ `docker compose ps` di `~/chirpstack-docker` menunjukkan seluruh service `Up`.
+- ☐ `docker compose ps` di `~/chirpstack-docker` menunjukkan seluruh service `Up` (cara membacanya: **Lampiran A**).
 - ☐ Web UI ChirpStack terbuka di `http://<ip-pi>:8080` (admin / admin).
 - ☐ Gateway EUI hasil `single_chan_pkt_fwd.py` sudah didaftarkan dan berstatus online.
 - ☐ DevEUI dan AppKey di ChirpStack **sama persis** dengan `src/node/lorawan_keys.h` (ingat urutan byte DevEUI).
@@ -425,3 +426,133 @@ Yang **belum** dijalankan pada sesi ini dan memang menjadi pekerjaan praktikan: 
 6. Analisis dan concept check
 7. Challenge — minimal CH-1
 8. Kesimpulan yang disusun sendiri: bandingkan seluruh lapisan buatan tangan M04–M10 dengan yang disediakan LoRaWAN, dan tentukan untuk skenario seperti apa membangun sendiri masih lebih tepat
+
+
+---
+
+## Lampiran A · Docker seperlunya (untuk yang belum pernah memakainya)
+
+Modul ini satu-satunya di lab yang memakai Docker, dan Anda **tidak** perlu mempelajarinya sebagai bahan kuliah. Lampiran ini hanya berisi yang benar-benar dipakai: lima perintah, cara membaca keluarannya, dan apa yang harus dilakukan kalau ada yang tidak beres.
+
+### A.1 Kenapa harus ada Docker
+
+ChirpStack bukan satu program. Supaya berjalan, ia memerlukan lima hal sekaligus:
+
+| Komponen | Tugasnya di modul ini |
+|---|---|
+| `chirpstack` | network + application server: memeriksa MIC, mengelola join, FCnt, downlink |
+| `chirpstack-gateway-bridge` | menerima UDP dari `single_chan_pkt_fwd.py` di port 1700 |
+| `postgres` | menyimpan gateway, device, DevEUI/AppKey, dan sesi OTAA |
+| `redis` | menyimpan keadaan sementara tiap perangkat |
+| `mosquitto` | broker MQTT: pintu keluar data ke `uplink_listen.py` |
+
+Memasang kelimanya satu per satu berarti mengurus lima versi, lima berkas konfigurasi, dan lima cara menyalakan — dan sebagian besar waktu praktikum akan habis di situ, bukan di LoRaWAN-nya.
+
+Analogi yang mungkin lebih dekat: Docker itu seperti memakai **modul jadi** (modul relay, modul step-down) alih-alih merakitnya sendiri dari komponen. Kotaknya sudah berisi semua yang diperlukan dengan nilai yang sudah benar; Anda tinggal memberi daya dan menyambungkan pin yang tepat.
+
+| Istilah Docker | Padanan yang mungkin lebih akrab |
+|---|---|
+| **image** | modul yang masih di dalam kemasan — belum menyala, isinya tetap |
+| **container** | modul yang sedang menyala di atas meja |
+| **volume** | EEPROM di dalam modul: isinya **tidak hilang** saat modul dimatikan |
+| **docker-compose.yml** | skema rangkaian: modul apa saja, port mana disambung ke mana |
+| `docker compose up -d` | menyalakan seluruh rangkaian sekaligus |
+
+### A.2 Lima perintah yang dipakai
+
+Semuanya dijalankan **dari dalam folder `~/chirpstack-docker`** — perintah `docker compose` membaca `docker-compose.yml` di folder tempat ia dipanggil, jadi kalau dijalankan dari folder lain akan berkata tidak menemukan apa-apa.
+
+```bash
+cd ~/chirpstack-docker
+```
+
+| Perintah | Artinya | Kapan dipakai |
+|---|---|---|
+| `docker compose ps` | apa saja yang sedang menyala | pertama kali dicek saat ada yang aneh |
+| `docker compose up -d` | nyalakan semuanya (`-d` = jalan di latar belakang) | awal praktikum; aman diulang berkali-kali |
+| `docker compose stop` | matikan sementara — **data tetap aman** | selesai praktikum |
+| `docker compose logs -f chirpstack` | lihat "serial monitor" milik satu service | saat join gagal dan penyebabnya belum jelas |
+| `docker compose restart` | matikan lalu nyalakan lagi | setelah mengubah berkas konfigurasi |
+
+`Ctrl-C` pada `logs -f` hanya menutup tampilannya, **tidak** mematikan server.
+
+Satu perintah lagi yang sebaiknya diketahui justru supaya tidak salah ketik:
+
+```bash
+docker compose down -v      # HAPUS container BESERTA datanya
+```
+
+`-v` itulah yang membuang volume — seluruh gateway, device, dan sesi OTAA yang sudah didaftarkan ikut hilang, dan EXP-01 harus diulang dari nol. Tanpa `-v`, `down` hanya membongkar container dan data tetap utuh.
+
+### A.3 Membaca `docker compose ps`
+
+```
+SERVICE                                  STATUS          PORTS
+chirpstack                               Up 43 minutes   0.0.0.0:8080->8080/tcp
+chirpstack-gateway-bridge                Up 43 minutes   0.0.0.0:1700->1700/udp
+chirpstack-gateway-bridge-basicstation   Up 43 minutes   0.0.0.0:3001->3001/tcp
+chirpstack-rest-api                      Up 43 minutes   0.0.0.0:8090->8090/tcp
+mosquitto                                Up 43 minutes   0.0.0.0:1883->1883/tcp
+postgres                                 Up 43 minutes   5432/tcp
+redis                                    Up 43 minutes   6379/tcp
+```
+
+Yang perlu dilihat hanya kolom **STATUS**: semuanya harus `Up`. `Exited` berarti mati; `Restarting` berarti gagal menyala berulang-ulang — dan penyebabnya selalu ada di `docker compose logs <nama service>`.
+
+Kolom PORTS menjelaskan siapa memakai pintu yang mana:
+
+| Port | Dipakai oleh | Terlihat di |
+|---|---|---|
+| 8080 | web UI ChirpStack | browser Anda |
+| 1700/udp | `single_chan_pkt_fwd.py` | opsi `--server` pada skrip gateway |
+| 1883 | `uplink_listen.py` | opsi `--host` |
+| 8090 | `provision_lab.py` (REST API) | opsi `--api` |
+| 3001 | protokol BasicStation | **tidak dipakai** modul ini, biarkan saja |
+
+`postgres` dan `redis` tidak punya `0.0.0.0:` di depan portnya: keduanya hanya bisa dihubungi container lain, tidak dari jaringan. Itu memang disengaja.
+
+### A.4 Perlu `sudo` atau tidak
+
+`setup_chirpstack.sh` memasukkan pengguna `pi` ke grup `docker`, tetapi keanggotaan grup baru berlaku **setelah login ulang**. Jadi:
+
+- Baru selesai memasang, masih di sesi SSH yang sama → muncul `permission denied ... /var/run/docker.sock`. Pakai `sudo docker compose ...`, atau keluar lalu SSH lagi.
+- Sesi SSH baru → `docker compose ...` tanpa `sudo` sudah bisa. Di Pi lab ini sudah diuji dan memang bisa.
+
+### A.5 Sesudah Raspberry Pi dimatikan atau reboot
+
+| Yang terjadi | Keterangan |
+|---|---|
+| ChirpStack **hidup sendiri** | layanan Docker berstatus `enabled`, dan ketujuh container memakai kebijakan `restart: unless-stopped` |
+| Data **tetap utuh** | gateway, device, DevEUI/AppKey, dan sesi OTAA tersimpan di volume; kedua node **tidak perlu join ulang** |
+| `single_chan_pkt_fwd.py` **tidak** hidup sendiri | skrip gateway dijalankan dari terminal, jadi harus dijalankan lagi setiap kali Pi dinyalakan |
+
+Satu pengecualian yang sering membingungkan: bila container pernah dihentikan **manual** dengan `docker compose stop`, ia tidak akan ikut hidup pada boot berikutnya — itu memang arti kata *unless-stopped*. Nyalakan lagi dengan `docker compose up -d`.
+
+Diukur di Pi lab ini: sesudah `docker compose down` lalu `docker compose up -d`, web UI sudah menjawab **2 detik** kemudian, dan kedua device masih terdaftar lengkap — bukti bahwa membongkar container tidak menyentuh data.
+
+### A.6 Kalau ada yang tidak beres
+
+| Gejala | Sebab yang paling sering | Tindakan |
+|---|---|---|
+| Web UI tidak terbuka dari laptop | Pi dan laptop beda jaringan, atau alamat IP-nya berubah | `hostname -I` di Pi, lalu buka `http://<ip>:8080` |
+| `permission denied ... docker.sock` | belum login ulang sesudah pemasangan | keluar dan SSH lagi, atau pakai `sudo` |
+| Satu service `Restarting` terus | konfigurasi salah atau port bentrok | `docker compose logs <service>` — bacanya dari bawah |
+| `port is already allocated` | ada program lain memakai port yang sama | matikan program itu, atau ubah nomor port di `docker-compose.override.yml` |
+| Gateway tetap **offline** di UI padahal skrip gateway jalan | hampir selalu bukan Docker: `--server` salah alamat, atau Gateway EUI yang didaftarkan berbeda | cocokkan EUI yang dicetak skrip dengan yang ada di UI |
+| Uplink sampai ke gateway tapi tidak muncul di UI | region gateway bridge bukan `eu433` | pastikan `docker-compose.override.yml` ada di `~/chirpstack-docker`, lalu `docker compose up -d` |
+
+Kalau benar-benar buntu, membangun ulang dari nol memakan waktu kurang dari satu menit — tetapi **seluruh pendaftaran EXP-01 hilang** dan harus diulang:
+
+```bash
+cd ~/chirpstack-docker
+docker compose down -v
+docker compose up -d
+```
+
+### A.7 Tiga hal yang sebaiknya tidak dilakukan
+
+1. **Jangan** menjalankan `docker system prune -a --volumes`. Perintah itu menghapus semua volume yang tidak terpakai — termasuk basis data ChirpStack bila container sedang mati.
+2. **Jangan** mengedit `docker-compose.yml` bawaan repo ChirpStack. Semua penyesuaian lab ini ada di `docker-compose.override.yml`, dan Docker Compose otomatis menggabungkan keduanya — sehingga repo resminya tetap bersih dan bisa diperbarui.
+3. **Jangan** menghapus folder `~/chirpstack-docker` selagi container menyala. Hentikan dulu dengan `docker compose down`, baru hapus.
+
+Sebagai gambaran ruang: seluruh image modul ini berukuran sekitar 640 MB dan volume datanya puluhan MB — jauh di bawah kapasitas kartu memori Raspberry Pi lab ini.

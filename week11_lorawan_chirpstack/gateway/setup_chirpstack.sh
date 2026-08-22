@@ -61,4 +61,8 @@ Langkah berikutnya ada di README bagian 6 (EXP-01):
     1. daftarkan gateway memakai EUI yang dicetak single_chan_pkt_fwd.py
     2. buat Device Profile region EU433, LoRaWAN 1.0.3, OTAA
     3. daftarkan Node 1 dan Node 2 beserta DevEUI + AppKey-nya
+
+Belum pernah memakai Docker? Lampiran A di README modul ini berisi lima
+perintah yang dipakai, cara membacanya, dan apa yang harus dilakukan bila
+ada yang tidak beres.
 TXT
