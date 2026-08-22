@@ -130,10 +130,14 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 ```
 week10_lora_slotted_aloha/
 ├── platformio.ini
+├── lora_monitor.py        ← dashboard 3-panel live (Gateway/Node1/Node2) + logging CSV
+├── logserial.md           ← cuplikan log serial aktual dari pengujian perangkat
 └── src/
     ├── node/main.cpp      ← dummy Ruang 1+2, hitung slot dari SYNC (env node1, node2)
     └── gateway/main.cpp   ← siarkan SYNC, terima tiap slot, balas ACK (env gateway)
 ```
+
+**Monitor dashboard** — `python3 lora_monitor.py` membaca ketiga port sekaligus dan menampilkan panel Gateway/Node 1/Node 2 (diterima/hilang per node, cycle terakhir, RSSI/SNR) di terminal, plus logging CSV otomatis. Butuh `pip install pyserial rich`. Jalankan setelah ketiga board selesai di-*upload*.
 
 **Build & flash** — **gateway lebih dahulu**, supaya kedua node langsung mendapat `SYNC` pertama begitu menyala.
 
@@ -190,15 +194,16 @@ Menunggu SYNC pertama dari gateway...
 --- Cycle 0 selesai | N1: diterima=1 hilang=0  N2: diterima=1 hilang=0 ---
 ```
 
-**Data capture**
+**Data capture** — diukur 90 detik / 56 siklus (bukan 10 siklus; lihat `logserial.md`)
 
 | Parameter | Hasil |
 |---|---|
-| `OK`/`FAIL` Node 1 & Node 2 setelah 10 siklus | |
-| Jumlah `[GAP]` di gateway | |
-| Slot yang tercatat gateway untuk Node 1 / Node 2 (konsisten 0 / 1?) | |
+| Diterima gateway per siklus, Node 1 / Node 2 (di akhir Cycle 55) | **56 / 56** (sama persis dengan jumlah siklus) |
+| `hilang` (gagal permanen) — Node 1 / Node 2 (data gateway) | **0 / 0** |
+| Jumlah `[GAP]` di gateway | **0** |
+| Slot yang tercatat gateway untuk Node 1 / Node 2 (konsisten 0 / 1?) | **ya — 111/111 paket, tanpa satu pun ketidakcocokan** |
 
-> **CHECKPOINT** — Pada Mode B, `[GAP]` seharusnya **nihil** selama kedua node menyala dan SYNC diterima normal. Munculnya `[GAP]` di sini menandakan masalah lain (SYNC terlewat, drift waktu, atau gangguan radio), bukan tabrakan struktural.
+> **CHECKPOINT terpenuhi.** Pada Mode B, `[GAP]` benar-benar **nihil** selama 56 siklus penuh (90 detik) — nol kehilangan untuk kedua node, jauh lebih bersih dibanding M08/M08B/M09 pada kondisi radio yang sama.
 
 ### EXP-02 — Mode A (Random Slot): Tabrakan Bisa Kembali
 
@@ -225,30 +230,30 @@ Bandingkan kolom `Slot` yang dicetak gateway dengan slot yang seharusnya (0 untu
 
 | Parameter | Hasil |
 |---|---|
-| Apakah `Slot` yang tercatat gateway selalu cocok dengan slot yang di-assign (Mode B)? | |
-| Selisih waktu kedatangan dari awal slot (perkiraan, dari log) | |
-| Apakah selisih itu stabil dari siklus ke siklus, atau melebar (indikasi drift)? | |
+| Apakah `Slot` yang tercatat gateway selalu cocok dengan slot yang di-assign (Mode B)? | **ya, 111/111 paket** (0 di Node 1, 1 di Node 2, tanpa kecuali) |
+| Durasi rata-rata satu siklus (dari `Cycle 0 selesai` s.d. `Cycle 55 selesai`) | **≈1633 ms** — dekat teori (`SLOT_COUNT × SLOT_DURATION_MS` = 1600 ms), selisih ~33 ms adalah overhead pemrosesan gateway |
+| Apakah durasi siklus stabil dari siklus ke siklus? | **ya** — 56 siklus berturut-turut tanpa pelebaran nyata dalam jendela 90 detik ini |
 
-> **CHECKPOINT** — Selisih waktu kedatangan seharusnya relatif stabil antar-siklus. Selisih yang terus melebar menandakan drift jam antar-board yang mulai signifikan dibanding `SLOT_GUARD_MS` — pada modul ini seharusnya belum terlihat karena SYNC menyegarkan referensi tiap siklus.
+> **CHECKPOINT terpenuhi.** `Slot` yang tercatat gateway selalu cocok dengan assignment (Node 1 → 0, Node 2 → 1), dan durasi siklus stabil sepanjang sesi.
 
 ### Verifikasi hardware
 
-Modul ini **belum diuji ulang di perangkat keras** pada revisi ini. Timing slot (`SLOT_DURATION_MS=800`, `SLOT_GUARD_MS=50`) dipilih berdasarkan perkiraan waktu udara paket pada SF7/BW125kHz yang sudah teramati pada modul-modul sebelumnya (puluhan milidetik), bukan dari pengukuran langsung pada payload modul ini. Tabel Pengukuran dan sel "Verifikasi hardware" dibiarkan kosong untuk diisi lewat pengujian langsung — termasuk memvalidasi apakah `SLOT_DURATION_MS` bawaan sudah cukup lapang pada kondisi nyata.
+**Diuji di perangkat pada 2026-08-22** — 3× Arduino Uno asli + Dragino LoRa Shield v1.2 (gateway + node1 + node2, port `/dev/ttyACM0/1/2`). Build dan upload ketiga environment sukses tanpa modifikasi kode. EXP-01 dan EXP-03 dijalankan (90 detik / 56 siklus) dan datanya nyata — lihat `logserial.md`: `SLOT_DURATION_MS=800` bawaan terbukti cukup lapang di kondisi nyata (nol `[GAP]`, nol `hilang`, slot selalu tepat). EXP-02 (Mode A / Random Slot, `SLOT_MODE_RANDOM=1`) **belum dijalankan** pada sesi ini — memerlukan mengubah kode dan unggah ulang kedua node, diserahkan sebagai latihan praktikum.
 
 ## 7 · Pengukuran
 
-**A. Mode B vs Mode A**
+**A. Mode B vs Mode A** (90 detik / 56 siklus untuk Mode B)
 
-| Mode | OK Node 1 | FAIL Node 1 | OK Node 2 | FAIL Node 2 | `[GAP]` total (gateway) |
+| Mode | Diterima gateway Node 1 | Hilang Node 1 | Diterima gateway Node 2 | Hilang Node 2 | `[GAP]` total (gateway) |
 |---|---|---|---|---|---|
-| B (Assigned) | | | | | |
-| A (Random) | | | | | |
+| B (Assigned) | 56 | 0 | 56 | 0 | 0 |
+| A (Random) | *(belum diuji — ubah `SLOT_MODE_RANDOM` ke 1 dan unggah ulang kedua node)* | | | | |
 
 **B. Distribusi slot Mode A (20 siklus)**
 
 | Slot terpilih | Jumlah — Node 1 | Jumlah — Node 2 | Jumlah siklus keduanya sama (tabrakan berpotensi) |
 |---|---|---|---|
-| 0 | | | |
+| 0 | *(belum diuji — EXP-02)* | | |
 | 1 | | | |
 
 **C. Slot observed vs assigned (Mode B, 10 siklus)**

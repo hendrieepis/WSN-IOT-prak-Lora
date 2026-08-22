@@ -121,10 +121,14 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 ```
 week08b_lora_aloha_ack/
 ├── platformio.ini
+├── lora_monitor.py        ← dashboard 3-panel live (Gateway/Node1/Node2) + logging CSV
+├── logserial.md           ← cuplikan log serial aktual dari pengujian perangkat
 └── src/
     ├── node/main.cpp      ← dummy Ruang 1+2, kirim + tunggu ACK (env node1, node2)
     └── gateway/main.cpp   ← terima, cetak, balas ACK beralamat (env gateway)
 ```
+
+**Monitor dashboard** — `python3 lora_monitor.py` membaca ketiga port sekaligus dan menampilkan panel Gateway/Node 1/Node 2 (OK/FAIL/retry, RSSI/SNR, deteksi `[GAP]`) di terminal, plus logging CSV otomatis. Butuh `pip install pyserial rich`. Jalankan setelah ketiga board selesai di-*upload*.
 
 **Build & flash** — **gateway lebih dahulu**, supaya paket pertama dari node langsung dibalas.
 
@@ -175,16 +179,17 @@ Peran: NODE (ALOHA + ACK) -- masih tanpa retry, lihat M09
 =====================
 ```
 
-**Data capture**
+**Data capture** — diukur 90 detik (bukan 10 siklus; lihat `logserial.md`)
 
 | Parameter | Hasil |
 |---|---|
-| `OK`/`FAIL` Node 1 setelah 10 siklus | |
-| `OK`/`FAIL` Node 2 setelah 10 siklus | |
-| Tingkat keberhasilan (%) kedua node | |
-| RSSI/SNR arah DATA vs arah ACK | |
+| `OK`/`FAIL` Node 1 (90 detik, 24 percobaan) | **22 / 2** |
+| `OK`/`FAIL` Node 2 (90 detik, 21 percobaan) | **19 / 2** |
+| Tingkat keberhasilan (%) kedua node | **91,7% / 90,5%** |
+| RSSI/SNR arah DATA (di gateway) — Node 1 / Node 2 | **-46,3 dBm / 9,84 dB — -59,5 dBm / 9,60 dB** |
+| Latensi ACK round-trip (TX → OK) — Node 1 / Node 2 | **rata-rata 60 ms / 59 ms** |
 
-> **CHECKPOINT** — Pada jarak satu meter, `FAIL` harus tetap nol di kedua node selama sepuluh siklus. Bandingkan hasil ini dengan `[GAP]` M08 pada kondisi serupa — keduanya seharusnya sama-sama nihil di jarak dekat.
+> **CHECKPOINT tidak sepenuhnya terpenuhi — dan itu justru instruktif.** `FAIL` tidak nol: sesi ini menangkap satu tabrakan nyata antara Node 1 dan Node 2 (`SEQ=5`, selisih TX ~90 ms — dalam *vulnerable period*), lihat `logserial.md`. Sesi M08 (90 detik, interval sama) justru **nihil** `[GAP]` — kebetulan statistik semata (tabrakan adalah peristiwa acak; 90 detik terlalu singkat untuk menyimpulkan tingkat kegagalan "sebenarnya" dari satu sesi saja), bukan bukti bahwa M08B lebih rentan tabrakan daripada M08 (keduanya memakai mekanisme kirim yang identik, hanya M08B menambahkan ACK di atasnya).
 
 ### EXP-02 — Dibandingkan dengan M08 (Kegagalan Senyap vs Diketahui)
 
@@ -219,30 +224,30 @@ Matikan gateway sesaat, amati kedua node, lalu nyalakan kembali.
 
 ### Verifikasi hardware
 
-Modul ini **belum diuji ulang di perangkat keras** pada revisi ini. Pola tunggu-ACK-dengan-timeout mengikuti M04 yang sudah terverifikasi, dan payload dua ruangan mengikuti M08. Tabel Pengukuran dan sel "Verifikasi hardware" dibiarkan kosong untuk diisi lewat pengujian langsung.
+**Diuji di perangkat pada 2026-08-22** — 3× Arduino Uno asli + Dragino LoRa Shield v1.2 (gateway + node1 + node2, port `/dev/ttyACM0/1/2`). Build dan upload ketiga environment sukses tanpa modifikasi kode. EXP-01 dijalankan (90 detik) dan datanya nyata, termasuk satu tabrakan sungguhan yang terekam langsung — lihat `logserial.md`. EXP-02 (perbandingan sistematis M08 vs M08B pada interval dipersempit) dan EXP-03 (mematikan gateway sesaat) **belum dijalankan** pada sesi verifikasi ini, diserahkan sebagai latihan praktikum.
 
 ## 7 · Pengukuran
 
-**A. Tingkat keberhasilan per node**
+**A. Tingkat keberhasilan per node** (90 detik, interval bawaan 2000–5000 ms)
 
 | Node | OK | FAIL | Keberhasilan (%) | RSSI rata-rata (dBm) |
 |---|---|---|---|---|
-| Node 1 | | | | |
-| Node 2 | | | | |
+| Node 1 | 22 | 2 | 91,7 | -46,3 |
+| Node 2 | 19 | 2 | 90,5 | -59,5 |
 
 **B. Ketidaksepakatan node vs gateway** (lihat Analisis soal 3)
 
 | Node | `OK` di node | `diterima` di gateway | Selisih | Tafsiran |
 |---|---|---|---|---|
-| Node 1 | | | | |
-| Node 2 | | | | |
+| Node 1 | 22 | 22 | 0 | Kedua `FAIL` Node 1 memang DATA yang tidak pernah sampai (konsisten dengan `[GAP]` gateway). |
+| Node 2 | 19 | 20 | **1** | Satu `FAIL` Node 2 ternyata DATA-nya **sampai** di gateway — ACK balasannya yang hilang di jalur pulang, bukan DATA di jalur pergi. |
 
 **C. M08 vs M08B pada interval kirim sama**
 
-| Interval kirim (ms) | `[GAP]` M08 (per menit) | `[FAIL]` M08B (per menit) |
+| Interval kirim (ms) | `[GAP]` M08 (90 detik) | `[FAIL]` M08B (90 detik, Node1+Node2) |
 |---|---|---|
-| 2000–5000 (bawaan) | | |
-| 300–500 | | |
+| 2000–5000 (bawaan) | 0 | 4 (2+2) |
+| 300–500 | *(belum diuji — jalankan EXP-02 dengan interval ini)* | |
 
 ## 8 · Analisis
 

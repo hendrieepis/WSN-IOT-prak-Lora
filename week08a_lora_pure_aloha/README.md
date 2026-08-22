@@ -124,12 +124,16 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 **Struktur proyek**
 
 ```
-week08_lora_pure_aloha/
+week08a_lora_pure_aloha/
 ├── platformio.ini
+├── lora_monitor.py        ← dashboard 3-panel live (Gateway/Node1/Node2) + logging CSV
+├── logserial.md           ← cuplikan log serial aktual dari pengujian perangkat
 └── src/
     ├── node/main.cpp      ← dummy Ruang 1+2, kirim bebas (env node1, node2)
     └── gateway/main.cpp   ← terima & cetak, deteksi gap SEQ (env gateway)
 ```
+
+**Monitor dashboard** — `python3 lora_monitor.py` membaca ketiga port sekaligus dan menampilkan panel Gateway/Node 1/Node 2 (statistik diterima, RSSI/SNR, deteksi `[GAP]`) di terminal, plus logging CSV otomatis. Butuh `pip install pyserial rich`. Jalankan setelah ketiga board selesai di-*upload*.
 
 **Build & flash** — **gateway lebih dahulu**, supaya paket pertama dari node langsung tertangkap.
 
@@ -177,16 +181,16 @@ Peran: NODE (Pure ALOHA) -- kirim bebas, tanpa ACK, tanpa retry
 =====================
 ```
 
-**Data capture**
+**Data capture** — diukur 90 detik (bukan 5 menit; lihat `logserial.md` untuk cuplikan log dan metodologi rekam)
 
 | Parameter | Hasil |
 |---|---|
-| Jumlah paket diterima gateway (5 menit) — Node 1 | |
-| Jumlah paket diterima gateway (5 menit) — Node 2 | |
-| Jumlah `[GAP]` muncul — Node 1 / Node 2 | |
-| RSSI & SNR rata-rata kedua node | |
+| Jumlah paket diterima gateway (90 detik) — Node 1 | **27** |
+| Jumlah paket diterima gateway (90 detik) — Node 2 | **24** |
+| Jumlah `[GAP]` muncul — Node 1 / Node 2 | **0 / 0** |
+| RSSI & SNR rata-rata kedua node | Node 1: -45,9 dBm / 10,00 dB — Node 2: -57,9 dBm / 9,79 dB |
 
-> **CHECKPOINT** — Pada jarak dekat dan interval kirim standar (2–5 detik), `[GAP]` jarang muncul karena peluang tumpang-tindih rendah. Bila `[GAP]` sudah sering muncul di jarak dekat, periksa dulu apakah keduanya benar memakai `NODE_ID` yang berbeda sebelum menyimpulkan itu tabrakan.
+> **CHECKPOINT terpenuhi.** Pada jarak dekat dan interval kirim standar (2–5 detik), `[GAP]` **tidak muncul sama sekali** selama 90 detik (51 paket total) — sesuai prediksi teoretis: pada beban rendah, peluang tumpang-tindih dua node sangat kecil meski tanpa carrier-sense. Beda RSSI ±12 dB antar node murni posisi fisik di meja pengujian, bukan indikasi masalah.
 
 ### EXP-02 — Memaksa Tabrakan
 
@@ -213,32 +217,32 @@ Bandingkan isi payload dua node dan pastikan keduanya membawa data Ruang 1 **dan
 
 | Parameter | Hasil |
 |---|---|
-| Jumlah field dalam satu payload | |
-| Apakah Ruang 1 dan Ruang 2 selalu tiba bersamaan (satu paket)? | |
-| Ukuran payload (jumlah karakter) | |
+| Jumlah field dalam satu payload | **6** (`NODE`, `SEQ`, `R1T`, `R1H`, `R2T`, `R2H`) |
+| Apakah Ruang 1 dan Ruang 2 selalu tiba bersamaan (satu paket)? | **ya** — tidak pernah terpisah pada 51 paket yang diamati |
+| Ukuran payload (jumlah karakter) | **45** (mis. `NODE=1,SEQ=2,R1T=29.8,R1H=59,R2T=25.4,R2H=68`) |
 
-> **CHECKPOINT** — Satu paket harus selalu membawa **kedua** ruangan sekaligus. Ini yang membuat modul ini lebih hemat lalu lintas radio dibanding mengirim empat paket terpisah (Suhu R1, Lembab R1, Suhu R2, Lembab R2) untuk data yang sama.
+> **CHECKPOINT terpenuhi.** Satu paket selalu membawa **kedua** ruangan sekaligus. Ini yang membuat modul ini lebih hemat lalu lintas radio dibanding mengirim empat paket terpisah (Suhu R1, Lembab R1, Suhu R2, Lembab R2) untuk data yang sama.
 
 ### Verifikasi hardware
 
-Modul ini **belum diuji ulang di perangkat keras** pada revisi ini. Kode disusun mengikuti pola yang telah terverifikasi pada M01 (loss via nomor urut), M04 (RSSI/SNR per paket), dan M05 (build flag per-node via `-DNODE_ID`). Tabel Pengukuran dan sel "Verifikasi hardware" dibiarkan kosong untuk diisi lewat pengujian langsung.
+**Diuji di perangkat pada 2026-08-22** — 3× Arduino Uno asli + Dragino LoRa Shield v1.2 (gateway + node1 + node2, port `/dev/ttyACM0/1/2`, sudah cocok dengan `platformio.ini` bawaan). Build dan upload ketiga environment sukses tanpa modifikasi kode. EXP-01 dan EXP-03 dijalankan dan datanya nyata (lihat tabel di atas serta `logserial.md`). EXP-02 (memaksa tabrakan dengan interval sempit) memerlukan mengubah `SEND_INTERVAL_MIN/MAX` di kode dan unggah ulang kedua node — **belum dijalankan pada sesi verifikasi ini**, diserahkan sebagai latihan praktikum sesuai instruksi modul.
 
 ## 7 · Pengukuran
 
 **A. Tingkat kedatangan paket terhadap kepadatan kirim**
 
-| Interval kirim (ms) | Total dikirim (kedua node, 5 menit) | Total diterima gateway | Throughput (%) |
+| Interval kirim (ms) | Total dikirim (kedua node, 90 detik) | Total diterima gateway | Throughput (%) |
 |---|---|---|---|
-| 2000–5000 (bawaan) | | | |
-| 1000–2000 | | | |
-| 300–500 | | | |
+| 2000–5000 (bawaan) | 51 (27+24, tanpa hilang di jendela rekam) | 51 | ~100 (beban rendah, jauh dari puncak G=0,5) |
+| 1000–2000 | *(belum diuji — jalankan EXP-02 dengan interval ini)* | | |
+| 300–500 | *(belum diuji — jalankan EXP-02 dengan interval ini)* | | |
 
 **B. RSSI/SNR per node**
 
 | Node | RSSI rata-rata (dBm) | SNR rata-rata (dB) | Jumlah `[GAP]` |
 |---|---|---|---|
-| Node 1 | | | |
-| Node 2 | | | |
+| Node 1 | -45,9 | 10,00 | 0 |
+| Node 2 | -57,9 | 9,79 | 0 |
 
 ## 8 · Analisis
 

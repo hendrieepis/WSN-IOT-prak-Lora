@@ -128,10 +128,14 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 ```
 week09_lora_aloha_retry/
 ├── platformio.ini
+├── lora_monitor.py        ← dashboard 3-panel live (Gateway/Node1/Node2) + logging CSV
+├── logserial.md           ← cuplikan log serial aktual dari pengujian perangkat
 └── src/
     ├── node/main.cpp      ← dummy Ruang 1+2, retry + backoff acak (env node1, node2)
     └── gateway/main.cpp   ← terima, kenali duplicate via SEQ, balas ACK (env gateway)
 ```
+
+**Monitor dashboard** — `python3 lora_monitor.py` membaca ketiga port sekaligus dan menampilkan panel Gateway/Node 1/Node 2 (OK/FAIL/retry, data baru vs duplicate, RSSI/SNR) di terminal, plus logging CSV otomatis. Butuh `pip install pyserial rich`. Jalankan setelah ketiga board selesai di-*upload*.
 
 **Build & flash** — **gateway lebih dahulu**, supaya paket pertama dari node langsung dibalas.
 
@@ -182,15 +186,16 @@ Peran: NODE (ALOHA + ACK + Random Backoff + Retry)
 =====================
 ```
 
-**Data capture**
+**Data capture** — diukur 90 detik (bukan 10 siklus; lihat `logserial.md`)
 
 | Parameter | Hasil |
 |---|---|
-| `OK`/`FAIL` Node 1 & Node 2 setelah 10 siklus | |
-| Rata-rata retry per siklus sukses | |
-| `duplicate` yang tercatat di gateway | |
+| `OK`/`FAIL` Node 1 (23 siklus) | **23 / 0** |
+| `OK`/`FAIL` Node 2 (23 siklus) | **23 / 0** |
+| Rata-rata retry per siklus sukses | Node 1: 3 retry total / 23 siklus ≈ **0,13** — Node 2: 2 retry total / 23 siklus ≈ **0,09** |
+| `duplicate` yang tercatat di gateway | Node 1: **1** — Node 2: **1** |
 
-> **CHECKPOINT** — Pada jarak dekat, sebagian besar siklus harus berhasil dengan `SUCCESS setelah 0 retry`. Retry yang sering muncul di jarak dekat menandakan masalah perangkat (antena, catu daya), bukan keterbatasan jangkauan.
+> **CHECKPOINT terpenuhi.** Sebagian besar siklus (21/23 Node 1, 22/23 Node 2) sukses langsung dengan `SUCCESS setelah 0 retry`; hanya satu siklus per node yang butuh retry (2× dan 1× untuk Node 1, 2× untuk Node 2) pada jarak dekat.
 
 ### EXP-02 — Memaksa Retry: M08B vs M09 pada Interval Sama
 
@@ -224,33 +229,33 @@ Amati log gateway secara khusus mencari baris `PAKET DITERIMA (DUPLICATE)`.
 
 ### Verifikasi hardware
 
-Modul ini **belum diuji ulang di perangkat keras** pada revisi ini. Pola retry-dengan-backoff dan deteksi duplicate mengikuti kontrak ACK M08B yang sudah dirancang untuk kasus ini sejak awal. Tabel Pengukuran dan sel "Verifikasi hardware" dibiarkan kosong untuk diisi lewat pengujian langsung.
+**Diuji di perangkat pada 2026-08-22** — 3× Arduino Uno asli + Dragino LoRa Shield v1.2 (gateway + node1 + node2, port `/dev/ttyACM0/1/2`). Build dan upload ketiga environment sukses tanpa modifikasi kode. EXP-01 dijalankan (90 detik) dan datanya nyata, termasuk siklus yang benar-benar butuh retry+backoff untuk sukses — lihat `logserial.md`, yang juga memuat perbandingan langsung M08B vs M09 pada interval bawaan yang sama (retry menurunkan kegagalan permanen dari 4 kejadian menjadi 0). EXP-02 versi README (interval dipersempit 300–500 ms) dan pengukuran EXP-03 selama 5 menit penuh **belum dijalankan** pada sesi verifikasi ini, diserahkan sebagai latihan praktikum.
 
 ## 7 · Pengukuran
 
-**A. Distribusi jumlah retry per siklus sukses**
+**A. Distribusi jumlah retry per siklus sukses** (90 detik, interval bawaan)
 
 | Retry terpakai | Jumlah siklus — Node 1 | Jumlah siklus — Node 2 |
 |---|---|---|
-| 0 (langsung sukses) | | |
-| 1 | | |
-| 2 | | |
-| 3 (batas, tetap gagal jika ini pun tidak cukup) | | |
+| 0 (langsung sukses) | 21 | 22 |
+| 1 | 1 | 0 |
+| 2 | 1 | 1 |
+| 3 (batas, tetap gagal jika ini pun tidak cukup) | 0 | 0 |
 
-**B. M08B vs M09 pada beberapa interval kirim**
+**B. M08B vs M09 pada interval kirim sama** (90 detik, jarak & posisi board identik)
 
-| Interval kirim (ms) | `[FAIL]` M08B (%) | Gagal permanen M09 (%) | Rata-rata retry M09 |
+| Interval kirim (ms) | `FAIL` M08B (Node1+Node2) | Gagal permanen M09 (Node1+Node2) | Rata-rata retry M09 |
 |---|---|---|---|
-| 2000–5000 (bawaan) | | | |
-| 1000–2000 | | | |
-| 300–500 | | | |
+| 2000–5000 (bawaan) | 4 | **0** | Node1: 0,13/siklus — Node2: 0,09/siklus |
+| 1000–2000 | *(belum diuji)* | | |
+| 300–500 | *(belum diuji — jalankan EXP-02 dengan interval ini)* | | |
 
-**C. Duplicate vs data baru**
+**C. Duplicate vs data baru** (dari sisi gateway, 90 detik)
 
 | Node | Data baru | Duplicate | Rasio duplicate/baru (%) |
 |---|---|---|---|
-| Node 1 | | | |
-| Node 2 | | | |
+| Node 1 | 25 | 1 | 4,0 |
+| Node 2 | 24 | 1 | 4,2 |
 
 ## 8 · Analisis
 
