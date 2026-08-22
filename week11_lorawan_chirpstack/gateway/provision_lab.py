@@ -14,8 +14,16 @@ persis dengan yang tertulis di README ketika ada yang tidak jalan.
         create-api-key --name praktikum
 
     python3 provision_lab.py --token eyJ0eXAi... --gateway-id 2CCF67FFFE53AC11
+    python3 provision_lab.py --token ... --gateway-id ... --kelompok 2
 
-Nilai DevEUI dan AppKey di bawah HARUS sama dengan src/node/lorawan_keys.h.
+DevEUI dan AppKey dihitung dari nomor kelompok dengan aturan yang sama persis
+seperti src/node/lorawan_keys.h -- ubah salah satunya saja dan join akan gagal
+dengan gejala paling menyesatkan: paket sampai, tetapi perangkat tidak pernah
+ter-aktivasi.
+
+Kelompok 1 memakai nama aplikasi dan perangkat tanpa akhiran, sama seperti
+contoh di README; kelompok 2 dan 3 diberi akhiran -k2 / -k3 supaya ketiganya
+bisa hidup berdampingan di satu server bila network server dipakai bersama.
 """
 
 import argparse
@@ -24,16 +32,32 @@ import sys
 import urllib.error
 import urllib.request
 
-# Sama persis dengan src/node/lorawan_keys.h (di sana ditulis terbalik untuk
-# DevEUI, di sini ditulis seperti yang tampil di layar ChirpStack).
-NODES = [
-    {"name": "node1-ruangan-1", "dev_eui": "0011223344556601",
-     "app_key": "00112233445566778899aabbccddeef1",
-     "desc": "Arduino Uno + SX1276 - Ruangan 1 (suhu 25-30 C, RH 60-75 %)"},
-    {"name": "node2-ruangan-2", "dev_eui": "0011223344556602",
-     "app_key": "00112233445566778899aabbccddeef2",
-     "desc": "Arduino Uno + SX1276 - Ruangan 2 (suhu 28-35 C, RH 40-65 %)"},
-]
+# Aturan penomoran yang sama dengan src/node/lorawan_keys.h:
+#   DevEUI : 0011223344 55 KK NN   KK = 66/77/88 untuk kelompok 1/2/3
+#   AppKey : KK 112233445566778899AABBCCDDEE FN   KK = 00/01/02, FN = F1/F2
+RUANGAN = {
+    1: ("Ruangan 1", "suhu 25-30 C, RH 60-75 %"),
+    2: ("Ruangan 2", "suhu 28-35 C, RH 40-65 %"),
+}
+KANAL_HZ = {1: 433175000, 2: 433375000, 3: 433575000}
+KANAL_KELOMPOK = {k: f"{hz / 1e6:.3f} MHz" for k, hz in KANAL_HZ.items()}
+
+
+def daftar_node(kelompok):
+    """Susun DevEUI, AppKey, dan nama untuk kedua node satu kelompok."""
+    awalan = "" if kelompok == 1 else f"k{kelompok}-"
+    hasil = []
+    for node in (1, 2):
+        ruang, rentang = RUANGAN[node]
+        hasil.append({
+            "name": f"{awalan}node{node}-{ruang.lower().replace(' ', '-')}",
+            "dev_eui": f"001122334455{0x66 + (kelompok - 1) * 0x11:02x}{node:02x}",
+            "app_key": f"{kelompok - 1:02x}112233445566778899aabbccddeef{node}",
+            "desc": f"Arduino Uno + SX1276 - {ruang} ({rentang}), "
+                    f"kelompok {kelompok}, {KANAL_KELOMPOK[kelompok]}",
+        })
+    return hasil
+
 
 # Codec opsional: mengubah "T=27.4,H=68" menjadi objek JSON, supaya kolom
 # "Object" di ChirpStack menampilkan angka yang sudah terbaca. Payload di
@@ -67,8 +91,15 @@ class API:
                 return json.loads(raw) if raw.strip() else {}
         except urllib.error.HTTPError as e:
             detail = e.read().decode()
-            if e.code == 409 or "already exists" in detail:
-                return None            # sudah ada -- dianggap sukses
+            # ChirpStack menolak objek kembar dengan beberapa cara berbeda:
+            # 409, pesan "already exists", atau -- untuk gateway dengan EUI yang
+            # sudah terdaftar -- 500 berisi pelanggaran unique constraint dari
+            # PostgreSQL. Ketiganya berarti hal yang sama bagi skrip ini:
+            # objeknya sudah ada, lanjut saja.
+            if (e.code == 409 or "already exists" in detail
+                    or "duplicate key" in detail):
+                print(f"   (sudah ada, dilewati: {method} {path.split('?')[0]})")
+                return None
             raise SystemExit(f"{method} {path} gagal ({e.code}): {detail}")
         except urllib.error.URLError as e:
             raise SystemExit(f"Tidak bisa menghubungi {self.base}: {e.reason}")
@@ -82,11 +113,22 @@ def main():
                     help="EUI gateway, seperti yang dicetak single_chan_pkt_fwd.py")
     ap.add_argument("--api", default="http://127.0.0.1:8090",
                     help="alamat chirpstack-rest-api (bawaan: http://127.0.0.1:8090)")
-    ap.add_argument("--app-name", default="praktikum-wsn")
+    ap.add_argument("--kelompok", type=int, default=1, choices=(1, 2, 3),
+                    help="nomor kelompok: menentukan DevEUI, AppKey, dan kanal "
+                         "(bawaan: 1). HARUS sama dengan -DKELOMPOK di platformio.ini")
+    ap.add_argument("--app-name", default=None,
+                    help="nama aplikasi (bawaan: praktikum-wsn untuk kelompok 1, "
+                         "praktikum-wsn-k<n> untuk kelompok lain)")
     ap.add_argument("--profile-name", default="uno-sx1276-eu433-otaa")
     args = ap.parse_args()
 
+    if args.app_name is None:
+        args.app_name = ("praktikum-wsn" if args.kelompok == 1
+                         else f"praktikum-wsn-k{args.kelompok}")
+    nodes = daftar_node(args.kelompok)
+
     api = API(args.api, args.token)
+    print(f"Kelompok         : {args.kelompok}  (kanal {KANAL_KELOMPOK[args.kelompok]})")
 
     tenants = api.call("GET", "/api/tenants?limit=10")
     if not tenants or not tenants.get("result"):
@@ -97,8 +139,9 @@ def main():
     gw_id = args.gateway_id.lower()
     api.call("POST", "/api/gateways", {"gateway": {
         "gatewayId": gw_id,
-        "name": "single-chan-pi5",
-        "description": "Raspberry Pi 5 + Dragino LoRa GPS HAT (SX1276), 433.175 MHz SF7",
+        "name": f"single-chan-pi5-k{args.kelompok}",
+        "description": "Raspberry Pi 5 + Dragino LoRa GPS HAT (SX1276), "
+                       f"{KANAL_KELOMPOK[args.kelompok]} SF7 - kelompok {args.kelompok}",
         "tenantId": tenant_id,
         "statsInterval": 30,
         "location": {"latitude": 0, "longitude": 0, "altitude": 0},
@@ -113,7 +156,7 @@ def main():
         res = api.call("POST", "/api/device-profiles", {"deviceProfile": {
             "tenantId": tenant_id,
             "name": args.profile_name,
-            "description": "Profil Modul 11 - kanal tunggal 433.175 MHz SF7BW125",
+            "description": "Profil Modul 11 - kanal tunggal EU433 SF7BW125",
             "region": "EU433",
             "macVersion": "LORAWAN_1_0_3",
             "regParamsRevision": "A",
@@ -140,7 +183,7 @@ def main():
         app_id = res["id"]
     print(f"Application      : {args.app_name} ({app_id})")
 
-    for n in NODES:
+    for n in nodes:
         api.call("POST", "/api/devices", {"device": {
             "devEui": n["dev_eui"],
             "name": n["name"],
@@ -157,7 +200,9 @@ def main():
         }})
         print(f"Device           : {n['name']}  DevEUI={n['dev_eui']}")
 
-    print("\nSelesai. Nyalakan gateway lalu kedua node, dan pantau di web UI:")
+    print("\nSelesai. Jalankan gateway pada kanal kelompok ini:")
+    print(f"  python3 single_chan_pkt_fwd.py --freq {KANAL_HZ[args.kelompok]}")
+    print("lalu pantau di web UI:")
     print("  Applications > " + args.app_name + " > Devices > <node> > Events")
 
 

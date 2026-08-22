@@ -75,9 +75,28 @@
 #define TX_INTERVAL   30    // detik antar-uplink (dihitung dari selesainya TX)
 #define FPORT          1    // port aplikasi; 1-223 bebas dipakai aplikasi
 
-// Kanal tunggal yang didengar gateway. HARUS sama persis dengan
-// FREQUENCY_HZ di gateway/single_chan_pkt_fwd.py.
+// Kanal tunggal yang didengar gateway. HARUS sama persis dengan frekuensi
+// yang dipakai gateway (--freq pada single_chan_pkt_fwd.py).
+//
+// Tiap kelompok memakai satu kanal wajib EU433 sendiri, supaya tiga meja di
+// satu ruangan tidak saling menimpa. Nomornya datang dari -DKELOMPOK di
+// platformio.ini, dan menggeser DevEUI/AppKey juga -- lihat lorawan_keys.h.
+#ifndef KELOMPOK
+#define KELOMPOK 1
+#endif
+
+#if KELOMPOK == 1
 #define SC_FREQ_HZ    433175000UL
+#define SC_FREQ_TXT   "433.175"
+#elif KELOMPOK == 2
+#define SC_FREQ_HZ    433375000UL
+#define SC_FREQ_TXT   "433.375"
+#elif KELOMPOK == 3
+#define SC_FREQ_HZ    433575000UL
+#define SC_FREQ_TXT   "433.575"
+#else
+#error "KELOMPOK harus 1, 2, atau 3 -- satu kanal EU433 untuk tiap kelompok"
+#endif
 #define SC_DR         DR_SF7        // SF7BW125 = DR5 pada rencana EU433/EU868
 
 // Jendela RX2 menurut EU433. Gateway kanal tunggal tidak pernah memakainya
@@ -282,10 +301,10 @@ void setup() {
     Serial.println();
     Serial.print(F("=== LoRaWAN NODE "));
     Serial.print(NODE_ID);
-    Serial.print(F(" - "));
-    Serial.print(F(ROOM_NAME));
-    Serial.println(F(" ==="));
-    Serial.print(F("Kanal   : 433.175 MHz SF7BW125 (kanal tunggal)\r\nInterval: "));
+    Serial.print(F(" - " ROOM_NAME " (Kelompok "));
+    Serial.print(KELOMPOK);
+    Serial.println(F(") ==="));
+    Serial.print(F("Kanal   : " SC_FREQ_TXT " MHz SF7BW125 (kanal tunggal)\r\nInterval: "));
     Serial.print(TX_INTERVAL);
     Serial.println(F(" detik"));
 

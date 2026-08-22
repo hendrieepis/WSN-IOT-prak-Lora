@@ -195,6 +195,7 @@ week11_lorawan_chirpstack/
 │   └── lorawan_keys.h              ← DevEUI/JoinEUI/AppKey per node
 └── gateway/                        ← seluruhnya dijalankan DI RASPBERRY PI
     ├── setup_chirpstack.sh         ← pasang Docker + ChirpStack v4 (sekali jalan)
+    ├── siapkan_gateway.sh          ← siapkan Pi satu kelompok (kanal + kunci + EUI)
     ├── docker-compose.override.yml ← satu-satunya perubahan: region EU433
     ├── single_chan_pkt_fwd.py      ← gateway kanal tunggal (lanjutan M06)
     ├── uplink_listen.py            ← baca uplink kedua node lewat MQTT + CSV
@@ -221,6 +222,10 @@ python3 week11_lorawan_chirpstack/upload_auto.py --monitor
 # 4. DI RASPBERRY PI — pantau data yang sudah didekripsi server
 python3 week11_lorawan_chirpstack/gateway/uplink_listen.py
 ```
+
+Bila **beberapa kelompok bekerja bersamaan** di satu ruangan, langkah 1–2 diganti
+satu perintah `siapkan_gateway.sh --kelompok <n>` dan hanya satu Pi yang perlu
+menjalankan ChirpStack — lihat **Lampiran B**.
 
 **Pre-flight checklist**
 
@@ -271,27 +276,29 @@ Nyalakan Node 1 saja lebih dahulu (buka Serial Monitor 115200), amati sampai `[J
 **Expected output — node**
 
 ```
-=== LoRaWAN NODE 1 - Ruangan 1 ===
+=== LoRaWAN NODE 1 - Ruangan 1 (Kelompok 1) ===
 Kanal   : 433.175 MHz SF7BW125 (kanal tunggal)
 Interval: 30 detik
 Menyusun JoinRequest OTAA ...
 [JOIN] mengirim JoinRequest ...
 [TX] radio: 433175 kHz DR5
 [JOIN] BERHASIL
-  DevAddr : 7FCCA
+  DevAddr : 1EBD973
   NetID   : 0
-[TX #1] FPort=1 "T=27.3,H=64" -> antre di LMIC
+[TX #1] FPort=1 "T=25.0,H=66" -> antre di LMIC
 [TX] selesai (FCntUp=1)
 ```
+
+`DevAddr` berbeda di tiap sesi — server memberi yang baru setiap kali perangkat join.
 
 **Expected output — gateway**
 
 ```
-[RX]  23 B  RSSI= -66 dBm  SNR=  9.8 dB  tmst=2744282123
-     JoinRequest DevEUI=0011223344556601 DevNonce=3234
-[TX] downlink dijadwalkan: 17 B  433.175 MHz  SF7BW125  dalam 4784 ms
-     JoinAccept (17 byte)
-[TX] terkirim (meleset -0.3 ms dari jadwal)
+17:18:43.397  [RX]  23 B  RSSI= -66 dBm  SNR=  9.8 dB  tmst=1631694015
+              JoinRequest DevEUI=0011223344556601 DevNonce=23600
+17:18:43.611  [TX] downlink dijadwalkan: 17 B  433.175 MHz  SF7BW125  dalam 4786 ms
+              JoinAccept (17 byte)
+17:18:48.443  [TX] terkirim (meleset -0.2 ms dari jadwal)
 ```
 
 Sesudah join berhasil, **buat kesalahannya dengan sengaja**: balik urutan byte `DEVEUI` di `lorawan_keys.h` (tulis MSB-first seperti tampilan ChirpStack), unggah ulang, dan amati apa yang terjadi di kedua sisi.
@@ -301,15 +308,15 @@ Sesudah join berhasil, **buat kesalahannya dengan sengaja**: balik urutan byte `
 | Parameter | Node 1 | Node 2 |
 |---|---|---|
 | Percobaan join yang berhasil | **ke-1** | **ke-1** |
-| Waktu dari `mengirim JoinRequest` sampai `BERHASIL` | **9,2 detik** | **12,6 detik** |
-| DevAddr yang diberikan server | **`00ACC8E9`** | **`0013E3DD`** |
-| RSSI / SNR JoinRequest di gateway | **−65 dBm / 9,8 dB** | **−61 dBm / 9,5 dB** |
-| Jeda JoinAccept yang dijadwalkan server (ms) | **4784** | **4786** |
-| Ketelitian penembakan JoinAccept | **−0,3 ms** | **−0,2 ms** |
+| Waktu dari `mengirim JoinRequest` sampai `BERHASIL` | **8,2 detik** | **6,5 detik** |
+| DevAddr yang diberikan server | **`01EBD973`** | **`01DC98E3`** |
+| RSSI / SNR JoinRequest di gateway | **−66 dBm / 9,8 dB** | **−64 dBm / 9,8 dB** |
+| Jeda JoinAccept yang dijadwalkan server (ms) | **4786** | **4786** |
+| Ketelitian penembakan JoinAccept | **−0,2 ms** | **−0,4 ms** |
 | Dengan DevEUI terbalik: apakah gateway tetap menerima paket? | *(belum diuji — kerjakan sendiri)* | |
 | Dengan DevEUI terbalik: apakah ChirpStack mencatat join? | *(belum diuji — kerjakan sendiri)* | |
 
-Sebagian besar dari 9–12 detik itu **bukan** waktu udara: LMIC menunda JoinRequest pertama beberapa detik secara acak (supaya sekumpulan node yang menyala bersamaan tidak serentak bicara), lalu JoinAccept baru boleh dikirim 5 detik sesudah uplink. Waktu udara paketnya sendiri hanya puluhan milidetik.
+Sebagian besar dari 6–8 detik itu **bukan** waktu udara: LMIC menunda JoinRequest pertama beberapa detik secara acak (supaya sekumpulan node yang menyala bersamaan tidak serentak bicara), lalu JoinAccept baru boleh dikirim 5 detik sesudah uplink. Waktu udara paketnya sendiri hanya puluhan milidetik.
 
 **Buka abstraksinya** — di `src/node/main.cpp`, `lockSingleChannel()` dipanggil **tiga kali**, dan salah satunya ada di dalam `case EV_JOINING`. Hapus yang di `EV_JOINING` saja, unggah ulang, lalu baca baris `[TX] radio: ... kHz`. Jelaskan angka yang muncul, dan telusuri di sumber LMIC mengapa penguncian kanal yang dilakukan di `setup()` bisa hilang begitu saja. (Petunjuk: `LMICeulike_initJoinLoop()` memanggil `LMICbandplan_initDefaultChannels()`.)
 
@@ -324,20 +331,23 @@ Biarkan kedua node berjalan minimal 5 menit. Buka **Applications → Devices →
 ```
 waktu     device      FCnt  payload          suhu    RH    RSSI    SNR
 ------------------------------------------------------------------------
-16:20:13  node2-ruangan-2     0  T=31.8,H=53     31.8C   53%    -65 dBm   9.5 dB
-16:20:41  node1-ruangan-1     0  T=27.3,H=64     27.3C   64%    -66 dBm   9.8 dB
+17:18:48  node1-ruangan-1     0  T=25.0,H=66     25.0C   66%    -67 dBm  10.0 dB
+17:19:32  node2-ruangan-2     0  T=32.1,H=47     32.1C   47%    -64 dBm  11.8 dB
+17:20:00  node1-ruangan-1     3  T=26.0,H=61     26.0C   61%    -67 dBm   9.8 dB
+17:20:11  node2-ruangan-2     2  T=33.7,H=44     33.7C   44%    -63 dBm   9.8 dB
 ```
 
 **Data capture** (isi dari CSV `uplink_listen.py` atau tabel Events)
 
 | Parameter | Node 1 | Node 2 |
 |---|---|---|
-| Jumlah uplink diterima selama ~5 menit | **10** | **9** |
-| Rentang suhu yang terlihat | **25,2–29,9 °C** (spesifikasi 25–30) | **28,3–33,6 °C** (spesifikasi 28–35) |
-| Rentang kelembapan yang terlihat | **60–74 %** (spesifikasi 60–75) | **40–62 %** (spesifikasi 40–65) |
+| Uplink dikirim (dihitung dari `[TX #n]` di serial) | **10** | **9** |
+| Uplink yang sampai ke ChirpStack | **9** | **9** |
+| Rentang suhu yang terlihat | **25,0–28,5 °C** (spesifikasi 25–30) | **31,1–34,4 °C** (spesifikasi 28–35) |
+| Rentang kelembapan yang terlihat | **60–71 %** (spesifikasi 60–75) | **40–65 %** (spesifikasi 40–65) |
 | FCnt awal → akhir | **0 → 10** | **0 → 9** |
-| Ada FCnt yang terlewat? Berapa? | **tidak ada** | **tidak ada** |
-| RSSI rata-rata / SNR rata-rata | **−64,3 dBm / 9,8 dB** | **−61,6 dBm / 9,9 dB** |
+| Ada FCnt yang terlewat? Berapa? | **ya — FCnt 2** (satu uplink hilang) | **tidak ada** |
+| RSSI rata-rata / SNR rata-rata | **−66,1 dBm / 9,7 dB** | **−62,8 dBm / 10,0 dB** |
 
 Satu frame per node **tidak** dihitung di tabel ini: uplink 15 byte tanpa FPort yang muncul beberapa detik sesudah join. Itu jawaban otomatis LMIC atas perintah MAC dari server, bukan data aplikasi — lihat `logserial.md`.
 
@@ -356,15 +366,17 @@ Amati apa yang hilang karena gateway hanya punya satu modem. Dua pengamatan, ked
 |---|---|
 | Jumlah `[TX] TERLAMBAT` selama sesi | **0** (pada sesi lain, saat uplink pertama sesudah join, pernah terjadi 1×) |
 | Jumlah downlink yang akhirnya lewat RX2 | **0** (pada sesi tersebut: 1, di 434.665 MHz SF12 — dan berhasil diterima node) |
-| Ketelitian jadwal downlink (`meleset ... ms`), terbaik / terburuk | **−0,2 ms / −0,3 ms** dari 4 downlink |
-| Jumlah uplink node yang tidak sampai ke gateway | **0 dari 19** — ketika node dinyalakan bergantian |
+| Ketelitian jadwal downlink (`meleset ... ms`), terbaik / terburuk | **−0,2 ms / −0,4 ms** dari 4 downlink |
+| Jumlah uplink node yang tidak sampai ke gateway | **1 dari 19** — Node 1 `FCnt=2`, saat gateway sedang menangani JoinRequest Node 2 |
 | Bila kedua node dinyalakan **bersamaan** | **1 JoinRequest hilang**, node itu baru join 69 detik kemudian |
+
+Kejadian `FCnt` yang melompat itu justru bahan analisis paling berharga di modul ini: cocokkan cap waktu `[TX #n]` di serial node dengan log gateway pada detik yang sama, dan Anda akan menemukan gateway sedang sibuk dengan node lain. `logserial.md` memuat kedua log yang sudah disejajarkan.
 
 **Buka abstraksinya** — di `gateway/single_chan_pkt_fwd.py`, fungsi `start_rx()` mengembalikan **frekuensi dan SF**, bukan hanya mode radio. Hapus dua baris `_set_frequency`/`_set_spreading_factor` di sana, jalankan sampai ada satu downlink RX2, lalu jelaskan mengapa sesudah itu gateway tidak pernah menerima apa pun lagi — dan mengapa tidak ada satu pun pesan galat yang muncul.
 
 ### Verifikasi hardware
 
-**Diuji di perangkat pada 2026-08-22** — 2× Arduino Uno asli + Dragino LoRa Shield v1.2 (`/dev/ttyACM1`, `/dev/ttyACM2`), Raspberry Pi 5 (Debian 13) + Dragino LoRa GPS HAT v1.4 sebagai gateway, ChirpStack v4 di Docker pada Pi yang sama, region EU433. Build kedua environment sukses (RAM 69,8 %, Flash 75,0 % dari ATmega328P). EXP-02, EXP-03, dan EXP-04 dijalankan dan datanya nyata — kedua node **join OTAA pada percobaan pertama**, 19 uplink berturut-turut sampai ke aplikasi tanpa satu pun hilang selama ~5,5 menit, dan seluruh downlink meleset kurang dari 1 ms dari jadwal server. Rinciannya di `logserial.md`.
+**Diuji di perangkat pada 2026-08-22** — 2× Arduino Uno asli + Dragino LoRa Shield v1.2 (`/dev/ttyACM1`, `/dev/ttyACM2`), Raspberry Pi 5 (Debian 13) + Dragino LoRa GPS HAT v1.4 sebagai gateway, ChirpStack v4 di Docker pada Pi yang sama, region EU433. Build kedua environment sukses (RAM 69,8 %, Flash 75,0 % dari ATmega328P). EXP-02, EXP-03, dan EXP-04 dijalankan dengan kode yang persis seperti di repositori ini, dan datanya nyata — kedua node **join OTAA pada percobaan pertama**, **18 dari 19 uplink** sampai ke aplikasi selama jendela rekam 5,5 menit (yang satu hilang beserta penyebabnya terdokumentasi di `logserial.md`), dan seluruh downlink meleset kurang dari setengah milidetik dari jadwal server. Skema pembagian kelompok (Lampiran B) diuji terpisah dengan menjalankan kelompok 2 di 433.375 MHz.
 
 Yang **belum** dijalankan pada sesi ini dan memang menjadi pekerjaan praktikan: EXP-01 lewat web UI (di sesi ini pendaftaran dilakukan dengan `gateway/provision_lab.py` supaya cepat direproduksi), percobaan DevEUI sengaja dibalik di EXP-02, kedua kotak **Buka abstraksinya**, dan seluruh Challenge.
 
@@ -374,22 +386,22 @@ Yang **belum** dijalankan pada sesi ini dan memang menjadi pekerjaan praktikan: 
 
 | Node | Percobaan join ke- | Waktu join (detik) | DevAddr | RSSI JoinRequest | Jeda JoinAccept (ms) |
 |---|---|---|---|---|---|
-| Node 1 | 1 | 9,2 | `00ACC8E9` | −65 dBm | 4784 |
-| Node 2 | 1 | 12,6 | `0013E3DD` | −61 dBm | 4786 |
+| Node 1 | 1 | 8,2 | `01EBD973` | −66 dBm | 4786 |
+| Node 2 | 1 | 6,5 | `01DC98E3` | −64 dBm | 4786 |
 
 **B. Uplink 5 menit**
 
 | Node | Uplink dikirim (dari serial) | Uplink diterima gateway | Uplink muncul di ChirpStack | Loss (%) | RSSI rata-rata | SNR rata-rata |
 |---|---|---|---|---|---|---|
-| Node 1 | 10 | 10 | 10 | 0 | −64,3 dBm | 9,8 dB |
-| Node 2 | 9 | 9 | 9 | 0 | −61,6 dBm | 9,9 dB |
+| Node 1 | 10 | 9 | 9 | 10 | −66,1 dBm | 9,7 dB |
+| Node 2 | 9 | 9 | 9 | 0 | −62,8 dBm | 10,0 dB |
 
 **C. Rentang data dummy (bukti asal data)**
 
 | Node | Suhu min | Suhu maks | RH min | RH maks | Sesuai spesifikasi ruangan? |
 |---|---|---|---|---|---|
-| Node 1 (25–30 °C, 60–75 %) | 25,2 | 29,9 | 60 | 74 | ya |
-| Node 2 (28–35 °C, 40–65 %) | 28,3 | 33,6 | 40 | 62 | ya |
+| Node 1 (25–30 °C, 60–75 %) | 25,0 | 28,5 | 60 | 71 | ya |
+| Node 2 (28–35 °C, 40–65 %) | 31,1 | 34,4 | 40 | 65 | ya |
 
 ## 8 · Analisis
 
@@ -556,3 +568,115 @@ docker compose up -d
 3. **Jangan** menghapus folder `~/chirpstack-docker` selagi container menyala. Hentikan dulu dengan `docker compose down`, baru hapus.
 
 Sebagai gambaran ruang: seluruh image modul ini berukuran sekitar 640 MB dan volume datanya puluhan MB — jauh di bawah kapasitas kartu memori Raspberry Pi lab ini.
+
+
+---
+
+## Lampiran B · Menjalankan lab untuk beberapa kelompok sekaligus
+
+Tiga kelompok, tiga Raspberry Pi, satu ruangan. Yang perlu diputuskan ada dua: siapa yang menjalankan server, dan bagaimana ketiga kelompok tidak saling mengganggu di udara.
+
+### B.1 Satu server untuk sekelas — bukan satu server per kelompok
+
+Network server adalah **infrastruktur bersama**; itu memang bentuk LoRaWAN di dunia nyata. Satu gateway melayani banyak perangkat, dan satu server melayani banyak gateway. Lab ini sebaiknya mengikuti bentuk yang sama:
+
+```
+Kelompok 1: Pi + HAT ──┐
+Kelompok 2: Pi + HAT ──┼── UDP :1700 ──► satu Pi berisi ChirpStack (Docker)
+Kelompok 3: Pi + HAT ──┘
+```
+
+| | Server bersama (dianjurkan) | Server sendiri tiap kelompok |
+|---|---|---|
+| Docker | hanya di **satu** Pi | di ketiga Pi |
+| Yang dipasang di Pi kelompok | dua paket apt saja | Docker + 637 MB image |
+| Kesiapan | menit | bergantung unduhan, dikali tiga |
+| Pemisahan data antar-kelompok | lewat Application masing-masing | terpisah total |
+| Mirip praktik nyata | ya | tidak |
+
+Pi mana yang menjadi server bebas — boleh salah satu Pi kelompok, boleh Pi dosen. Yang penting alamat IP-nya tetap dan diketahui semua kelompok.
+
+### B.2 Yang membedakan tiap kelompok
+
+Bila ketiga kelompok memakai frekuensi **dan** kunci yang sama, akan terjadi hal yang jauh lebih membingungkan daripada sekadar tabrakan:
+
+> Gateway kelompok B ikut mendengar JoinRequest node kelompok A. Karena AppKey-nya sama persis, MIC-nya sah di mata server, dan server pun mengirim JoinAccept. Node kelompok A bisa berakhir join ke jaringan kelompok B — datanya muncul di dashboard yang salah, tanpa satu pun pesan galat di sisi mana pun.
+
+Karena itu nomor kelompok menggeser tiga hal sekaligus, dan semuanya dihitung dari **satu** angka:
+
+| Kelompok | Kanal (EU433) | DevEUI Node 1 / Node 2 | AppKey (awalan) | Application di ChirpStack |
+|---|---|---|---|---|
+| 1 | 433.175 MHz | `0011223344556601` / `…6602` | `00…f1` / `00…f2` | `praktikum-wsn` |
+| 2 | 433.375 MHz | `0011223344557701` / `…7702` | `01…f1` / `01…f2` | `praktikum-wsn-k2` |
+| 3 | 433.575 MHz | `0011223344558801` / `…8802` | `02…f1` / `02…f2` | `praktikum-wsn-k3` |
+
+Ketiga frekuensi itu bukan pilihan bebas: **itulah tiga kanal wajib rencana EU433**, yang sudah dikenal ChirpStack tanpa perlu konfigurasi tambahan. Kelompok 1 memakai nilai yang sama persis dengan seluruh contoh di modul ini, jadi tabel dan log di README tetap berlaku apa adanya.
+
+### B.3 Langkah tiap kelompok
+
+**1 · Di Raspberry Pi kelompok** — satu perintah, mengurus dependensi, SPI, dan menghitung Gateway EUI:
+
+```bash
+bash week11_lorawan_chirpstack/gateway/siapkan_gateway.sh \
+     --kelompok 2 --server 192.168.1.45
+```
+
+Tambahkan `--dengan-server` pada Pi yang sekaligus menjalankan ChirpStack. Keluarannya berisi Gateway EUI, perintah menjalankan gateway, serta DevEUI dan AppKey yang harus didaftarkan — salin apa adanya:
+
+```
+ Gateway EUI : 2CCF67FFFE53AC11
+ Kanal       : 433375000 Hz  SF7BW125
+ Jalankan gateway:
+   python3 single_chan_pkt_fwd.py --server 192.168.1.45 --freq 433375000
+   DevEUI Node 1 : 0011223344557701
+   AppKey Node 1 : 01112233445566778899aabbccddeef1
+```
+
+**2 · Di sisi node** — ubah **satu** baris di `platformio.ini`, lalu unggah ulang kedua node:
+
+```ini
+    -D KELOMPOK=2
+```
+
+Baris itu menentukan kanal sekaligus DevEUI dan AppKey; tidak ada berkas lain yang perlu disentuh. Periksa hasilnya di baris pembuka Serial Monitor:
+
+```
+=== LoRaWAN NODE 1 - Ruangan 1 (Kelompok 2) ===
+Kanal   : 433.375 MHz SF7BW125 (kanal tunggal)
+```
+
+**3 · Di ChirpStack** — tiap kelompok mendaftarkan gateway dan kedua node-nya sendiri lewat web UI (ini inti EXP-01, jangan dilewati). Asisten yang ingin menyiapkan atau memulihkan seluruh kelas dengan cepat bisa memakai:
+
+```bash
+python3 gateway/provision_lab.py --token <API-KEY> \
+        --gateway-id <EUI-KELOMPOK> --kelompok 2
+```
+
+### B.4 Hal-hal yang perlu diantisipasi
+
+- **Jarak antar-meja.** Tiga kanal itu hanya berjarak 200 kHz, sedangkan bandwidth tiap sinyal 125 kHz dan node memancar 17 dBm. Dua papan yang berjarak beberapa sentimeter tetap dapat saling menulikan penerimaan meski beda kanal. Letakkan tiap kelompok di meja yang berbeda.
+- **Lebih dari tiga kelompok.** EU433 hanya menyediakan tiga kanal wajib. Kelompok keempat boleh berbagi kanal dengan kelompok 1 **asalkan DevEUI dan AppKey-nya berbeda** — konsekuensinya hanya tabrakan yang lebih sering, bukan data yang tertukar. Skrip sengaja menolak `--kelompok 4` supaya keputusan itu diambil sadar, bukan tidak sengaja.
+- **Satu Pi, satu radio.** Satu Raspberry Pi tidak bisa menjadi gateway dua kelompok sekaligus: SX1276 hanya punya satu modem, jadi satu frekuensi pada satu waktu.
+- **Gateway EUI berbeda sendirinya.** EUI diturunkan dari MAC tiap Pi, jadi ketiga kelompok otomatis punya EUI berbeda tanpa diatur — tetapi berarti tiap kelompok wajib mendaftarkan EUI Pi-nya sendiri, bukan menyalin punya kelompok lain.
+
+### B.5 Kalau tetap ingin meng-clone kartu SD
+
+Cara ini masuk akal hanya bila internet lab tidak dapat diandalkan. Jangan memakai `dd` mentah: kartu 128 GB akan disalin seluruhnya termasuk ruang kosong. Pakai **rpi-clone** (berbasis rsync, hanya data terpakai) atau `dd` + **PiShrink**.
+
+Sesudah itu, **tiap hasil clone wajib dibereskan** — kalau tidak, ketiga Pi akan bentrok di jaringan:
+
+```bash
+sudo hostnamectl set-hostname pi-gw2                   # 1. nama host jangan kembar
+sudo rm /etc/ssh/ssh_host_*                            # 2. kunci host SSH jangan kembar
+sudo dpkg-reconfigure openssh-server
+sudo rm -f /etc/machine-id /var/lib/dbus/machine-id    # 3. machine-id kembar membuat
+sudo systemd-machine-id-setup                          #    DHCP memberi IP yang sama
+```
+
+Keempat: basis data ChirpStack ikut tersalin, jadi isinya masih Gateway EUI Pi induk. Jalankan `siapkan_gateway.sh --kelompok <n> --token …` di tiap clone untuk mendaftarkan EUI Pi tersebut.
+
+Alternatif yang lebih ringan bila masalahnya memang internet: sekali saja `docker save` keenam image ke flashdisk, lalu `docker load` di Pi lain — tanpa mengulang unduhan 637 MB.
+
+### B.6 Yang sudah diuji
+
+Skema kelompok ini diuji di perangkat pada 2026-08-22 dengan menjalankan kelompok 2 secara penuh: gateway dipindah ke 433.375 MHz, node di-flash dengan `-D KELOMPOK=2`, dan hasilnya node mengirim di 433.375 MHz (`[TX] radio: 433375 kHz DR5`), join OTAA dengan DevEUI `0011223344557702`, mendapat DevAddr `00D1C237`, lalu uplink-nya masuk ke Application **`praktikum-wsn-k2`** yang terpisah dari `praktikum-wsn` milik kelompok 1. Join berhasil pada percobaan kedua; percobaan pertamanya tidak diterima node meski JoinAccept sudah ditembakkan tepat waktu — kejadian yang sama sesekali muncul juga pada kelompok 1 dan memang sifat gateway kanal tunggal, bukan akibat pembagian kelompok.

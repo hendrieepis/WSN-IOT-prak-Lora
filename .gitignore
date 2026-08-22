@@ -6,3 +6,4 @@
 .vscode/ipch
 compile_commands.json
 *.csv
+__pycache__/

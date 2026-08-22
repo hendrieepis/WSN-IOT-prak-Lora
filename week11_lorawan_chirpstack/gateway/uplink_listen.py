@@ -84,9 +84,16 @@ def main():
         suhu = cocok.group(1) if cocok else ""
         rh = cocok.group(2) if cocok else ""
 
+        # Frame tanpa payload aplikasi (jawaban perintah MAC dari server) tetap
+        # ditampilkan -- justru berguna dilihat -- tetapi tidak dipaksa masuk
+        # kolom suhu/kelembapan.
+        tampil = teks if teks else "(MAC saja)"
+        suhu_txt = f"{suhu:>5}C" if suhu else "    -"
+        rh_txt = f"{rh:>4}%" if rh else "   -"
+
         jam = datetime.now().strftime("%H:%M:%S")
-        print(f"{jam}  {nama:10} {fcnt:5d}  {teks:14} "
-              f"{suhu:>5}C {rh:>4}%  {rssi:5} dBm {snr:5.1f} dB")
+        print(f"{jam}  {nama:10} {fcnt:5d}  {tampil:14} "
+              f"{suhu_txt} {rh_txt}  {rssi:5} dBm {snr:5.1f} dB")
 
         tulis.writerow([datetime.now().isoformat(timespec="seconds"), nama, eui,
                         fcnt, teks, suhu, rh, rssi, snr])

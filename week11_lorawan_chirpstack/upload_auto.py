@@ -106,8 +106,9 @@ def main():
             sys.exit(f"\nGagal pada environment '{nama}' — proses dihentikan.")
 
     print("\nSelesai. Pantau hasilnya di ChirpStack "
-          "(Applications > praktikum-wsn > Devices > <node> > Events),\n"
-          "atau di Raspberry Pi:  python3 gateway/uplink_listen.py")
+          "(Applications > praktikum-wsn > Devices > <node> > Events;\n"
+          "kelompok selain 1: praktikum-wsn-k<n>), atau di Raspberry Pi:\n"
+          "  python3 gateway/uplink_listen.py")
 
 
 if __name__ == "__main__":
