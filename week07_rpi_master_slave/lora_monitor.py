@@ -37,6 +37,7 @@ import queue
 import csv
 import time
 import argparse
+import glob
 import re
 import os
 import sys
@@ -80,6 +81,19 @@ REFRESH_HZ       = 4
 PERIODE_WINDOW   = 60              # jumlah periode terakhir untuk min/maks/rerata
 MISS_WARN        = 2               # lompatan RX# yang dianggap POLL hilang
 PASANGAN_WARN    = 3               # siklus berturut tanpa jawaban slave sebelah
+
+
+def deteksi_port_aktif():
+    """Port serial USB yang sedang tersambung, terurut nama device.
+
+    Uno asli muncul sebagai /dev/ttyACM*, klon ber-bridge CH340/CP2102/FTDI
+    sebagai /dev/ttyUSB* -- pola yang sama dipakai tools/deteksi_port.py.
+    Dipanggil tiap program start supaya default s1/s2 selalu mengikuti apa
+    yang benar-benar tersambung, bukan port tetap di atas.
+    """
+    if sys.platform.startswith("win"):
+        return []  # deteksi berbasis /dev/tty* tidak berlaku di Windows (COMx)
+    return sorted(glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*"))
 
 # Bentuk payload yang sah menurut kontrak M05/M07. Apa pun di luar dua pola ini
 # adalah byte yang rusak di udara -- dan modul ini TIDAK mengaktifkan CRC di
@@ -471,7 +485,10 @@ BANNER = """\
 """.format(s1=DEFAULT_S1_PORT, s2=DEFAULT_S2_PORT, baud=DEFAULT_BAUD)
 
 
-def parse_args():
+def parse_args(port_aktif):
+    s1_default = port_aktif[0] if len(port_aktif) > 0 else DEFAULT_S1_PORT
+    s2_default = port_aktif[1] if len(port_aktif) > 1 else DEFAULT_S2_PORT
+
     p = argparse.ArgumentParser(
         description="LoRa Monitor Dashboard sisi slave - tool pemantauan praktikum M07.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -482,10 +499,10 @@ def parse_args():
             "  python3 lora_monitor.py --out data_eksperimen.csv\n"
         ),
     )
-    p.add_argument('--s1',   default=DEFAULT_S1_PORT, metavar='PORT',
-                   help=f'Port serial Slave 1 (default: {DEFAULT_S1_PORT})')
-    p.add_argument('--s2',   default=DEFAULT_S2_PORT, metavar='PORT',
-                   help=f'Port serial Slave 2 (default: {DEFAULT_S2_PORT})')
+    p.add_argument('--s1',   default=s1_default, metavar='PORT',
+                   help=f'Port serial Slave 1 (default: {s1_default}, dari deteksi port aktif)')
+    p.add_argument('--s2',   default=s2_default, metavar='PORT',
+                   help=f'Port serial Slave 2 (default: {s2_default}, dari deteksi port aktif)')
     p.add_argument('--baud', default=DEFAULT_BAUD, type=int, metavar='N',
                    help=f'Baud rate serial (default: {DEFAULT_BAUD})')
     p.add_argument('--out',  default=None, metavar='FILE',
@@ -494,17 +511,22 @@ def parse_args():
 
 
 def main():
-    args    = parse_args()
+    port_aktif = deteksi_port_aktif()
+    args    = parse_args(port_aktif)
     no_args = len(sys.argv) == 1
     console = Console()
 
     if no_args:
         console.print(BANNER)
-        console.print(
-            f"[dim]Tidak ada argumen → menggunakan default: "
-            f"S1=[green]{args.s1}[/] S2=[magenta]{args.s2}[/] "
-            f"Baud=[white]{args.baud}[/][/dim]\n"
-        )
+
+    console.print(
+        f"[dim]Port aktif terdeteksi: {', '.join(port_aktif) if port_aktif else '(tidak ada -- memakai default tetap)'}[/]"
+    )
+    console.print(
+        f"[dim]Dipakai -> "
+        f"S1=[green]{args.s1}[/] S2=[magenta]{args.s2}[/] "
+        f"Baud=[white]{args.baud}[/][/dim]\n"
+    )
 
     shared = SharedState()
     shared.s1.port = args.s1

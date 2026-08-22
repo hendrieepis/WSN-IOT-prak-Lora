@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Upload otomatis ke Modul 01 (LoRa UART) — port serial dideteksi sendiri.
+"""Upload otomatis ke Modul 04 (LoRa ACK) — port serial dideteksi sendiri.
 
 Alternatif untuk menjalankan manual:
-    pio run -d week01_lora_uart -e sender   -t upload -t monitor
-    pio run -d week01_lora_uart -e receiver -t upload -t monitor
+    pio run -d week04_lora_ack -e sender   -t upload -t monitor
+    pio run -d week04_lora_ack -e receiver -t upload -t monitor
 
 Skrip ini memindai port /dev/ttyACM*/ttyUSB* yang sedang aktif, memetakannya
 ke environment `sender` (port pertama) dan `receiver` (port kedua), lalu
@@ -16,19 +16,19 @@ monitor_serial.py -- bila ya, dijalankan dengan --port TX=... --port RX=...
 persis memakai port sender/receiver yang barusan dipakai upload (bukan
 deteksi ulang), supaya tidak mungkin salah pasang.
 
-    python3 week01_lora_uart/upload_auto.py
+    python3 week04_lora_ack/upload_auto.py
         -> upload kedua board, port otomatis, lalu tanya mau monitor atau tidak
 
-    python3 week01_lora_uart/upload_auto.py --monitor
+    python3 week04_lora_ack/upload_auto.py --monitor
         -> upload lalu buka pio device monitor untuk sender, lanjut receiver
            (Ctrl-C untuk keluar dari tiap monitor sebelum lanjut ke board
            berikutnya) -- pemantauan satu board per satu waktu, bukan
            sekaligus seperti monitor_serial.py
 
-    python3 week01_lora_uart/upload_auto.py --only sender
+    python3 week04_lora_ack/upload_auto.py --only sender
         -> upload satu environment saja
 
-    python3 week01_lora_uart/upload_auto.py --sender /dev/ttyACM0 --receiver /dev/ttyACM1
+    python3 week04_lora_ack/upload_auto.py --sender /dev/ttyACM0 --receiver /dev/ttyACM1
         -> timpa hasil deteksi otomatis secara manual
 """
 import argparse

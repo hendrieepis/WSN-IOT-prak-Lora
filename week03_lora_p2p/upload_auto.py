@@ -1,34 +1,34 @@
 #!/usr/bin/env python3
-"""Upload otomatis ke Modul 01 (LoRa UART) — port serial dideteksi sendiri.
+"""Upload otomatis ke Modul 03 (LoRa P2P) — port serial dideteksi sendiri.
 
 Alternatif untuk menjalankan manual:
-    pio run -d week01_lora_uart -e sender   -t upload -t monitor
-    pio run -d week01_lora_uart -e receiver -t upload -t monitor
+    pio run -d week03_lora_p2p -e devicea -t upload -t monitor
+    pio run -d week03_lora_p2p -e deviceb -t upload -t monitor
 
 Skrip ini memindai port /dev/ttyACM*/ttyUSB* yang sedang aktif, memetakannya
-ke environment `sender` (port pertama) dan `receiver` (port kedua), lalu
+ke environment `devicea` (port pertama) dan `deviceb` (port kedua), lalu
 menjalankan `pio run` dengan --upload-port sesuai hasil deteksi --
 platformio.ini tidak perlu diedit tiap kali port berganti nama.
 
 Bawaannya HANYA upload (tanpa membuka pio device monitor). Sesudah kedua
 board selesai di-upload, skrip bertanya apakah mau langsung menjalankan
-monitor_serial.py -- bila ya, dijalankan dengan --port TX=... --port RX=...
-persis memakai port sender/receiver yang barusan dipakai upload (bukan
+monitor_serial.py -- bila ya, dijalankan dengan --port A=... --port B=...
+persis memakai port devicea/deviceb yang barusan dipakai upload (bukan
 deteksi ulang), supaya tidak mungkin salah pasang.
 
-    python3 week01_lora_uart/upload_auto.py
+    python3 week03_lora_p2p/upload_auto.py
         -> upload kedua board, port otomatis, lalu tanya mau monitor atau tidak
 
-    python3 week01_lora_uart/upload_auto.py --monitor
-        -> upload lalu buka pio device monitor untuk sender, lanjut receiver
+    python3 week03_lora_p2p/upload_auto.py --monitor
+        -> upload lalu buka pio device monitor untuk devicea, lanjut deviceb
            (Ctrl-C untuk keluar dari tiap monitor sebelum lanjut ke board
            berikutnya) -- pemantauan satu board per satu waktu, bukan
            sekaligus seperti monitor_serial.py
 
-    python3 week01_lora_uart/upload_auto.py --only sender
+    python3 week03_lora_p2p/upload_auto.py --only devicea
         -> upload satu environment saja
 
-    python3 week01_lora_uart/upload_auto.py --sender /dev/ttyACM0 --receiver /dev/ttyACM1
+    python3 week03_lora_p2p/upload_auto.py --devicea /dev/ttyACM0 --deviceb /dev/ttyACM1
         -> timpa hasil deteksi otomatis secara manual
 """
 import argparse
@@ -38,9 +38,9 @@ import sys
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent
-ENV_URUTAN = ["sender", "receiver"]
+ENV_URUTAN = ["devicea", "deviceb"]
 # Nama environment PlatformIO -> nama peran yang dipakai monitor_serial.py
-ENV_KE_PERAN = {"sender": "TX", "receiver": "RX"}
+ENV_KE_PERAN = {"devicea": "A", "deviceb": "B"}
 
 
 def deteksi_port_aktif():
@@ -67,7 +67,7 @@ def jalankan_pio(env, port, monitor):
 
 def tanya_lalu_monitor(port_env):
     """Tanya apakah mau langsung memantau, lalu jalankan monitor_serial.py
-    dengan port sender/receiver PERSIS seperti yang baru dipakai upload --
+    dengan port devicea/deviceb PERSIS seperti yang baru dipakai upload --
     bukan hasil deteksi ulang, supaya tidak mungkin meleset dari yang barusan
     di-flash.
     """
@@ -101,19 +101,19 @@ def tanya_lalu_monitor(port_env):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--sender", metavar="/dev/ttyXXX",
-                    help="timpa port sender (lewati deteksi otomatis)")
-    ap.add_argument("--receiver", metavar="/dev/ttyXXX",
-                    help="timpa port receiver (lewati deteksi otomatis)")
+    ap.add_argument("--devicea", metavar="/dev/ttyXXX",
+                    help="timpa port devicea (lewati deteksi otomatis)")
+    ap.add_argument("--deviceb", metavar="/dev/ttyXXX",
+                    help="timpa port deviceb (lewati deteksi otomatis)")
     ap.add_argument("--only", choices=ENV_URUTAN,
-                    help="upload satu environment saja (sender atau receiver)")
+                    help="upload satu environment saja (devicea atau deviceb)")
     ap.add_argument("--monitor", action="store_true",
                     help="buka pio device monitor per board sesudah upload "
                          "(bawaan: upload saja -- pakai monitor_serial.py untuk memantau keduanya sekaligus)")
     args = ap.parse_args()
 
     aktif = deteksi_port_aktif()
-    manual = {"sender": args.sender, "receiver": args.receiver}
+    manual = {"devicea": args.devicea, "deviceb": args.deviceb}
 
     port_env = {}
     sisa = list(aktif)

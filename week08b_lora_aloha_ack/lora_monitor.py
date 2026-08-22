@@ -21,6 +21,7 @@ import queue
 import csv
 import time
 import argparse
+import glob
 import re
 import os
 import sys
@@ -66,6 +67,21 @@ DEFAULT_BAUD     = 115200
 LOG_LINES        = 16
 REFRESH_HZ       = 4
 GAP_WARN_STREAK  = 3
+
+
+def deteksi_port_aktif():
+    """Port serial USB yang sedang tersambung, terurut nama device.
+
+    Uno asli muncul sebagai /dev/ttyACM*, klon ber-bridge CH340/CP2102/FTDI
+    sebagai /dev/ttyUSB* -- pola yang sama dipakai tools/deteksi_port.py.
+    Dipanggil tiap program start supaya default gateway/n1/n2 selalu
+    mengikuti apa yang benar-benar tersambung, bukan port tetap di atas.
+    """
+    if sys.platform.startswith("win"):
+        return []  # deteksi berbasis /dev/tty* tidak berlaku di Windows (COMx)
+    return sorted(glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*"))
+
+
 # Pure ALOHA (M08A) tidak punya ACK sama sekali -- node tidak pernah tahu
 # apakah paketnya sampai, jadi baris OK/FAIL/Retry di panel node disembunyikan.
 HAS_ACK          = True
@@ -501,7 +517,11 @@ BANNER = """\
     baud=DEFAULT_BAUD,
 )
 
-def parse_args():
+def parse_args(port_aktif):
+    gw_default = port_aktif[0] if len(port_aktif) > 0 else DEFAULT_GW_PORT
+    n1_default = port_aktif[1] if len(port_aktif) > 1 else DEFAULT_N1_PORT
+    n2_default = port_aktif[2] if len(port_aktif) > 2 else DEFAULT_N2_PORT
+
     p = argparse.ArgumentParser(
         description="LoRa ALOHA + ACK Monitor Dashboard -- tool evaluasi praktikum LoRa.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -512,12 +532,12 @@ def parse_args():
             f"  python lora_monitor.py --out data_eksperimen.csv\n"
         ),
     )
-    p.add_argument('--gateway', default=DEFAULT_GW_PORT,
-                   metavar='PORT', help=f'Port COM Gateway (default: {DEFAULT_GW_PORT})')
-    p.add_argument('--n1',      default=DEFAULT_N1_PORT,
-                   metavar='PORT', help=f'Port COM Node 1 (default: {DEFAULT_N1_PORT})')
-    p.add_argument('--n2',      default=DEFAULT_N2_PORT,
-                   metavar='PORT', help=f'Port COM Node 2 (default: {DEFAULT_N2_PORT})')
+    p.add_argument('--gateway', default=gw_default,
+                   metavar='PORT', help=f'Port COM Gateway (default: {gw_default}, dari deteksi port aktif)')
+    p.add_argument('--n1',      default=n1_default,
+                   metavar='PORT', help=f'Port COM Node 1 (default: {n1_default}, dari deteksi port aktif)')
+    p.add_argument('--n2',      default=n2_default,
+                   metavar='PORT', help=f'Port COM Node 2 (default: {n2_default}, dari deteksi port aktif)')
     p.add_argument('--baud',    default=DEFAULT_BAUD, type=int,
                    metavar='N',    help=f'Baud rate serial (default: {DEFAULT_BAUD})')
     p.add_argument('--out',     default=None,
@@ -525,20 +545,25 @@ def parse_args():
     return p, p.parse_args()
 
 def main():
-    p, args = parse_args()
+    port_aktif = deteksi_port_aktif()
+    p, args = parse_args(port_aktif)
     no_args = len(sys.argv) == 1
 
     console = Console()
 
     if no_args:
         console.print(BANNER)
-        console.print(
-            f"[dim]Tidak ada argumen -> menggunakan default: "
-            f"Gateway=[yellow]{args.gateway}[/] "
-            f"N1=[green]{args.n1}[/] "
-            f"N2=[magenta]{args.n2}[/] "
-            f"Baud=[white]{args.baud}[/][/dim]\n"
-        )
+
+    console.print(
+        f"[dim]Port aktif terdeteksi: {', '.join(port_aktif) if port_aktif else '(tidak ada -- memakai default tetap)'}[/]"
+    )
+    console.print(
+        f"[dim]Dipakai -> "
+        f"Gateway=[yellow]{args.gateway}[/] "
+        f"N1=[green]{args.n1}[/] "
+        f"N2=[magenta]{args.n2}[/] "
+        f"Baud=[white]{args.baud}[/][/dim]\n"
+    )
 
     shared = SharedState()
     shared.gw.port = args.gateway
