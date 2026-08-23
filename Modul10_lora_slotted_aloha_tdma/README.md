@@ -137,7 +137,7 @@ Modul ini dijalankan di atas Arduino Uno (ATmega328P) dengan Dragino LoRa Shield
 
 ```
 Modul10_lora_slotted_aloha_tdma/
-├── platformio.ini         ← [slot] mode = 1 (Slotted ALOHA) / 0 (TDMA)
+├── platformio.ini         ← [slot] mode = 1 (Slotted ALOHA) / 0 (TDMA), count = jumlah slot
 ├── lora_monitor.py        ← dashboard 3-panel live (Gateway/Node1/Node2) + logging CSV
 ├── logserial.md           ← cuplikan log serial aktual dari pengujian perangkat
 └── src/
@@ -272,7 +272,7 @@ Bandingkan kolom `Slot` yang dicetak gateway dengan slot yang seharusnya (0 untu
 
 ### Verifikasi hardware
 
-**Diuji di perangkat pada 2026-08-23** — 3× Arduino Uno asli + Dragino LoRa Shield v1.2 (gateway `/dev/ttyACM0`, node1 `/dev/ttyACM1`, node2 `/dev/ttyACM2`). **Kedua mode dijalankan pada sesi yang sama**, masing-masing 120 detik / 72 siklus, dengan firmware gateway yang tidak diubah di antaranya — hanya `[slot] mode` di `platformio.ini` yang diganti lalu kedua node di-flash ulang. Seluruh angka pada EXP-01, EXP-02, EXP-03, dan bagian Pengukuran berasal dari sesi itu; log mentahnya ada di `logserial.md`.
+**Diuji di perangkat pada 2026-08-23** — 3× Arduino Uno asli + Dragino LoRa Shield v1.2 (gateway `/dev/ttyACM0`, node1 `/dev/ttyACM1`, node2 `/dev/ttyACM2`). **Kedua mode dijalankan pada sesi yang sama**, masing-masing 120 detik / 72 siklus, dengan firmware gateway yang tidak diubah di antaranya — hanya `[slot] mode` di `platformio.ini` yang diganti lalu kedua node di-flash ulang. Seluruh angka pada EXP-01, EXP-02, dan EXP-03 berasal dari sesi itu. **Tabel D** diukur pada hari yang sama lewat dua sesi tambahan dengan `SLOT_COUNT` 3 (150 detik / 61 siklus) dan 4 (190 detik / 58 siklus), keduanya pada Mode A. Log mentah keempat sesi ada di `logserial.md`.
 
 ## 7 · Pengukuran
 
@@ -303,13 +303,20 @@ Undian yang seimbang: masing-masing mendekati 50/50 dari ±70 siklus, seperti ya
 | Slot berbeda | 38 | 38 | — | 0 |
 | Slot sama | 31 | 0 | 19 | 12 |
 
-**D. Isi sendiri** — ulangi EXP-01 dengan `SLOT_COUNT` dinaikkan menjadi 3 dan 4 (ubah di gateway **dan** kedua node), lalu bandingkan proporsi tabrakan terukur dengan teori `1/SLOT_COUNT`:
+**D. Pengaruh jumlah slot** — EXP-01 diulang dengan `SLOT_COUNT` 3 dan 4. Cukup ubah `[slot] count` di `platformio.ini`; angka itu dibaca gateway **dan** kedua node, jadi ketiganya mustahil berbeda. Ketiga board perlu di-flash ulang, sebab jendela dengar gateway ikut memanjang.
 
-| `SLOT_COUNT` | Teori tabrakan | Terukur | Keberhasilan keseluruhan |
-|---|---|---|---|
-| 2 | 50 % | 44,9 % | 70 % |
-| 3 | 33 % | | |
-| 4 | 25 % | | |
+| `SLOT_COUNT` | Panjang siklus | Tabrakan teori `1/N` | Tabrakan terukur | Keberhasilan | Throughput |
+|---|---|---|---|---|---|
+| 2 | 1,63 detik | 50 % | **44,9 %** (31/69) | 69,7 % (99/142) | **0,85 paket/detik** |
+| 3 | 2,43 detik | 33,3 % | **32,8 %** (20/61) | 82,8 % (101/122) | 0,69 paket/detik |
+| 4 | 3,23 detik | 25 % | **29,1 %** (16/55) | 84,1 % (95/113) | 0,52 paket/detik |
+
+Tiga titik ini sudah cukup untuk melihat dua hal sekaligus, dan keduanya berlawanan arah:
+
+1. **Teori `1/SLOT_COUNT` terbukti.** Selisih terukur–teori berturut-turut −5,1, −0,5, dan +4,1 poin persen — semuanya di dalam sebaran wajar untuk sampel 55–69 siklus (simpangan baku binomial ≈ 6 poin). Memperbanyak slot memang menurunkan peluang tabrakan, persis sebesar yang diramalkan.
+2. **Tetapi throughput justru turun.** Keberhasilan naik dari 69,7 % ke 84,1 %, sementara paket sukses per detik **turun** dari 0,85 menjadi 0,52 — sebab tiap slot tambahan memperpanjang siklus 800 ms, sedangkan dua node tetap hanya mengirim satu paket per siklus. Slot ke-3 dan ke-4 dibayar dengan waktu yang menganggur.
+
+Dua node dengan empat slot berarti separuh jatah waktu terbuang. Inilah alasan Slotted ALOHA tidak selesai hanya dengan memperbanyak slot, dan mengapa TDMA — yang jumlah slotnya **pas** sebanyak node — mengalahkan keduanya: pada EXP-02 keberhasilannya ≈99 % dengan siklus yang tetap 1,63 detik.
 
 ## 8 · Analisis
 
@@ -333,7 +340,7 @@ Undian yang seimbang: masing-masing mendekati 50/50 dari ±70 siklus, seperti ya
 - **CH-2 — Backoff hanya untuk Mode Random.** Tambahkan random backoff **kecil** (dalam batas satu slot, bukan lintas-slot) khusus untuk Mode A: bila ACK tidak diterima, node mengundi ulang slot untuk siklus berikutnya alih-alih memakai slot terakhir yang gagal. Bandingkan hasilnya dengan Mode A tanpa strategi ini.
 - **CH-3 — Deteksi drift.** Tambahkan pencatatan selisih waktu kedatangan tiap paket terhadap awal slot yang diharapkan di gateway, lalu jalankan modul selama beberapa menit untuk melihat apakah selisih itu melebar seiring waktu antar-SYNC.
 - **CH-5 — Buang paket cacat dengan CRC.** Tambahkan `LoRa.enableCrc()` di gateway **dan** kedua node (lihat M07B yang sudah memakainya), lalu ulangi EXP-01. Hitung: berapa paket yang tadinya "diterima" kini hilang sama sekali, apakah baris `Ruang 1 : 0.0 C` masih muncul, dan apakah penghitung `hilang` di gateway berhenti melonjak. Jelaskan mengapa membuang paket cacat justru membuat statistiknya lebih jujur.
-- **CH-4 — SLOT_COUNT lebih besar dari jumlah node.** Ubah `SLOT_COUNT` menjadi 4 sementara jumlah node tetap 2 (slot 2 dan 3 menganggur), lalu jelaskan efeknya terhadap panjang siklus dan throughput dibanding `SLOT_COUNT=2`.
+- **CH-4 — Cari jumlah slot yang optimal.** Tabel D sudah menunjukkan bahwa menambah slot menaikkan keberhasilan tetapi menurunkan throughput untuk 2 node. Lanjutkan dengan node ketiga (CH-1), ukur ulang ketiga nilai `SLOT_COUNT`, lalu tentukan: untuk `n` node, berapa `SLOT_COUNT` yang menghasilkan paket-sukses-per-detik tertinggi, dan mengapa jawabannya tidak selalu sama dengan `n`?
 
 ## 11 · Laporan
 

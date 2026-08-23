@@ -50,7 +50,9 @@
 // SLOT_COUNT dan SLOT_DURATION_MS HARUS SAMA PERSIS dengan gateway/main.cpp
 // -- keduanya tidak pernah dipertukarkan lewat radio, hanya disepakati lewat
 // kode, persis seperti parameter radio (SF, BW, CR) yang juga tidak dikirim.
+#ifndef SLOT_COUNT
 #define SLOT_COUNT          2     // Node 1 -> slot 0 ("ganjil"), Node 2 -> slot 1 ("genap")
+#endif
 #define SLOT_DURATION_MS  800     // cukup untuk TX DATA + ACK + margin pada SF7
 #define SLOT_GUARD_MS      50     // jeda kecil dari awal slot sebelum kirim
 

@@ -38,8 +38,12 @@
 #define LED_DURATION     150
 #define NODE_COUNT       2   // Node 1 dan Node 2 -> indeks array 1..2
 
-// HARUS SAMA PERSIS dengan src/node/main.cpp di kedua node.
+// HARUS SAMA PERSIS dengan src/node/main.cpp di kedua node. Nilainya datang
+// dari [slot] count di platformio.ini supaya gateway dan kedua node tidak
+// mungkin berbeda -- ketiganya membaca angka yang sama.
+#ifndef SLOT_COUNT
 #define SLOT_COUNT          2
+#endif
 #define SLOT_DURATION_MS  800
 
 volatile bool rxFlag = false;

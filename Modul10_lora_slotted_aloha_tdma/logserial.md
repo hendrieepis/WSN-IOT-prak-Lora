@@ -108,8 +108,27 @@ Slot tidak lagi diundi; tiap node terkunci di slotnya sendiri sepanjang sesi.
 
 Selisihnya bukan soal setelan, melainkan soal protokol: mengundi slot menyisakan peluang tabrakan `1/SLOT_COUNT` yang tidak pernah nol, sedangkan slot tetap menghapusnya secara konstruksi. Yang tersisa di Mode B hanyalah kegagalan yang memang di luar jangkauan penjadwalan — ACK yang hilang di udara.
 
+## Tabel D — sapuan `SLOT_COUNT` (Mode A)
+
+EXP-01 diulang dengan jumlah slot 3 dan 4, mengubah `[slot] count` di `platformio.ini` lalu mem-flash ketiga board (gateway ikut, sebab jendela dengarnya memanjang).
+
+| `SLOT_COUNT` | Durasi sesi | Siklus | Panjang siklus | Tabrakan teori | Tabrakan terukur | Keberhasilan | Throughput |
+|---|---|---|---|---|---|---|---|
+| 2 | 116 detik | 72 | 1,63 detik | 50 % | 31/69 = **44,9 %** | 99/142 = 69,7 % | **0,85 paket/detik** |
+| 3 | 146 detik | 61 | 2,43 detik | 33,3 % | 20/61 = **32,8 %** | 101/122 = 82,8 % | 0,69 paket/detik |
+| 4 | 184 detik | 58 | 3,23 detik | 25 % | 16/55 = **29,1 %** | 95/113 = 84,1 % | 0,52 paket/detik |
+
+Distribusi slot yang diundi juga merata, seperti yang diharapkan dari `random(0, SLOT_COUNT)`:
+
+| `SLOT_COUNT` | Node 1 | Node 2 |
+|---|---|---|
+| 3 | 16 / 22 / 23 | 17 / 21 / 23 |
+| 4 | 12 / 15 / 14 / 16 | 14 / 15 / 7 / 20 |
+
+Dua kesimpulan yang berlawanan arah: peluang tabrakan turun persis seperti ramalan `1/SLOT_COUNT` (selisih −5,1, −0,5, dan +4,1 poin persen terhadap teori, semuanya di dalam simpangan baku binomial ≈ 6 poin untuk sampel sebesar ini), **tetapi** paket sukses per detik justru turun dari 0,85 menjadi 0,52 karena tiap slot tambahan memperpanjang siklus 800 ms sementara node tetap mengirim satu paket per siklus.
+
 ## Ringkasan Verifikasi Hardware
 
 Diuji di perangkat pada **2026-08-23**: 3× Arduino Uno asli + Dragino LoRa Shield v1.2 (`/dev/ttyACM0/1/2`). Kedua mode dijalankan berurutan pada sesi yang sama, masing-masing 120 detik / 72 siklus. Perpindahan mode dilakukan lewat `[slot] mode` di `platformio.ini` (build flag `SLOT_MODE_RANDOM`), tanpa menyentuh `src/node/main.cpp` dan tanpa mem-flash ulang gateway. Seluruh angka pada README bagian Percobaan dan Pengukuran berasal dari sesi ini.
 
-Yang **belum** dijalankan dan diserahkan sebagai pekerjaan praktikum: tabel D (variasi `SLOT_COUNT` 3 dan 4) serta seluruh Challenge, termasuk CH-5 (`LoRa.enableCrc()`) yang lahir dari temuan paket cacat di EXP-01.
+Tabel D diukur pada hari yang sama lewat dua sesi tambahan (`SLOT_COUNT` 3 dan 4). Yang **belum** dijalankan dan diserahkan sebagai pekerjaan praktikum: seluruh Challenge, termasuk CH-5 (`LoRa.enableCrc()`) yang lahir dari temuan paket cacat di EXP-01.
