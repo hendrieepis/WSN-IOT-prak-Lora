@@ -8,11 +8,11 @@
               DENGAN LoRa
 
 
-   Arduino Uno + Raspberry Pi  •  7 MODUL
+  Arduino Uno + Raspberry Pi  •  11 MODUL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Yang dikerjakan:** LoRa mentah (SX1276) · RSSI & SNR · interrupt · ACK · master-slave multi-node · driver register langsung · gateway Linux
+**Yang dikerjakan:** LoRa mentah (SX1276) · RSSI & SNR · interrupt · ACK · master-slave multi-node · driver register langsung · gateway Linux · ALOHA, CSMA/CA, TDMA · LoRaWAN + ChirpStack
 
 ## Tentang lab ini
 
@@ -84,6 +84,10 @@ M01 tautan terbentuk ─► M02 penerimaan tak memblokir ─► M03 dua arah
 | Identitas pengirim di dalam payload | M03 (`DeviceA:`) | M05 (`S1:`, `S2:`) |
 | Pencocokan permintaan dengan balasan | M04 (`DATA:n` ↔ `ACK:n`) | M05, M07 (`POLL:n` ↔ `S<n>:DATA:m`) |
 | RSSI dan SNR dicatat berpasangan | M01 | seluruh modul |
+| Payload dua ruangan `NODE=,SEQ=,R1T=,R1H=,R2T=,R2H=` | M08 | M08B, M08C, M10 |
+| Balasan `ACK=<id>,SEQ=<n>` | M08B | M08C, M10 |
+
+**Satu pengecualian yang disengaja: M09.** Modul CSMA/CA memakai payload yang lebih pendek (`NODE=,SEQ=,T=,H=` — satu sensor per node) dan **tanpa ACK sama sekali**, meski M08B dan M08C sudah memilikinya. Itu bukan kelalaian: M09 mengukur satu variabel saja, yaitu efek mendengarkan kanal sebelum bicara, dan ACK/retry akan menutupi kegagalan yang justru sedang diukur. Pembandingnya karena itu M08, bukan M08C — dan M09 menyediakan pembanding itu di dalam dirinya sendiri lewat `CS_MODE=2` (carrier sense dimatikan).
 
 Konsekuensinya: **angka pengukuran modul awal dipakai lagi di modul akhir.** Loss terhadap jarak dari M01 menjadi pembanding tingkat keberhasilan ACK di M04; waktu pulang-pergi M03 menjadi dasar penentuan batas waktu di M04 dan M05.
 
@@ -93,22 +97,36 @@ Kontrak yang sama itu pula yang membuat dua modul terakhir dapat disambungkan si
 
 | Modul | Folder | MISSION | Arah data | Mekanisme RX | Level |
 |---|---|---|---|---|---|
-| 01 | `week01_lora_uart` | Establish the Link | satu arah | polling | Basic |
-| 02 | `week02_lora_led_notif` | Stop Waiting for Packets | satu arah | interrupt + flag | Basic |
-| 03 | `week03_lora_p2p` | Take Turns Talking | dua arah | polling | Intermediate |
-| 04 | `week04_lora_ack` | Know If It Arrived | dua arah | interrupt + timeout | Intermediate |
-| 05 | `week05_lora_master_slave` | Schedule the Airwaves | bintang, 3 node | polling terjadwal | Advanced |
-| 06 | `week06_rpi_lora_python` | Drop the Library | satu arah | polling register | Intermediate |
-| 07 | `week07_rpi_master_slave` | Move the Scheduler to Linux | bintang, 3 node | polling terjadwal | Advanced |
-| 08 | `week08_lora_pure_aloha` | Speak Freely, Collide Silently | bintang, 2 node | interrupt, tanpa balasan | Intermediate |
-| 08B | `week08b_lora_aloha_ack` | Finally Know | bintang, 2 node | interrupt + timeout | Intermediate |
-| 09 | `week09_lora_aloha_retry` | Try Again, Randomly | bintang, 2 node | interrupt + timeout + retry | Advanced |
-| 10 | `week10_lora_slotted_aloha` | Take a Number | bintang, 2 node | interrupt + SYNC + slot | Advanced |
-| 11 | `week11_lorawan_chirpstack` | Let the Protocol Take Over | bintang, 2 node + server | LoRaWAN Class A (LMIC) | Advanced |
+| 01 | `Modul01_lora_uart` | Establish the Link | satu arah | polling | Basic |
+| 02 | `Modul02_lora_led_notif` | Stop Waiting for Packets | satu arah | interrupt + flag | Basic |
+| 03 | `Modul03_lora_p2p` | Take Turns Talking | dua arah | polling | Intermediate |
+| 04 | `Modul04_lora_ack` | Know If It Arrived | dua arah | interrupt + timeout | Intermediate |
+| 05 | `Modul05_lora_master_slave` | Schedule the Airwaves | bintang, 3 node | polling terjadwal | Advanced |
+| 06 | `Modul06_rpi_lora_python` | Drop the Library | satu arah | polling register | Intermediate |
+| 07 | `Modul07_rpi_master_slave` | Move the Scheduler to Linux | bintang, 3 node | polling terjadwal | Advanced |
+| 07B | `Modul07b_rpi_master_slave_crc` | Move the Scheduler to Linux — varian CRC | bintang, 3 node | polling terjadwal + CRC payload | Advanced |
+| 08 | `Modul08_lora_aloha_tanpa_ack` | Speak Freely, Collide Silently | bintang, 2 node | interrupt, tanpa balasan | Intermediate |
+| 08B | `Modul08b_lora_aloha_ack` | Finally Know | bintang, 2 node | interrupt + timeout | Intermediate |
+| 08C | `Modul08c_lora_aloha_retry` | Try Again, Randomly | bintang, 2 node | interrupt + timeout + retry | Advanced |
+| 09 | `Modul09_lora_csma_ca` | Listen Before You Talk | bintang, 2 node | carrier sense + backoff | Advanced |
+| 10 | `Modul10_lora_slotted_aloha_tdma` | Take a Number | bintang, 2 node | interrupt + SYNC + slot | Advanced |
+| 11 | `Modul11_lorawan_chirpstack` | Let the Protocol Take Over | bintang, 2 node + server | LoRaWAN Class A (LMIC) | Advanced |
 
 Modul 01–05 memakai Arduino Uno + Dragino LoRa Shield v1.2. Modul 06 memakai dua Raspberry Pi + LoRa GPS HAT v1.4. Modul 07 mencampur keduanya: Raspberry Pi sebagai master, dua Arduino Uno sebagai slave.
 
-**Arc kedua — akses kanal tanpa penjadwal terpusat.** Modul 01–07 di atas adalah satu seri utuh yang berakhir di M07. Modul 08 dan seterusnya membuka arc baru di atas Arduino Uno + Dragino LoRa Shield v1.2 (topologi sama seperti M05, dua node + satu gateway), yang sengaja **membalik** premis M05/M07: alih-alih menjadwalkan giliran bicara dari pusat, node dibiarkan mengirim data dummy suhu & kelembaban dua ruangan kapan saja, dan setiap pertemuan menambah **satu** lapisan kendali kanal — M08 (Pure ALOHA, tanpa balasan sama sekali), M08B (ditambah ACK), M09 (ditambah random backoff + retry, dan gateway mulai mengenali paket duplicate lewat SEQ), lalu M10 (SYNC + slot waktu, retry M09 dihapus dan digantikan penjadwalan) yang menutup arc ini. Dua mode dibandingkan langsung pada M10: Assigned Slot (tabrakan hilang struktural) dan Random Slot (tabrakan tetap mungkin, meski lebih jarang daripada M08). Detail lengkap tiap modul ada di README masing-masing folder.
+**Cara membaca penomoran.** Angka adalah nomor modul; huruf di belakangnya berarti modul itu **menumpuk langsung** di atas modul bernomor sama, bukan pertemuan yang berdiri sendiri. M08 → M08B → M08C adalah tiga langkah berturut-turut di atas topologi dan kontrak data yang sama, sedangkan M07B adalah varian M07 dengan CRC payload diaktifkan. Nomor di tabel ini selalu sama dengan judul di dalam README masing-masing folder.
+
+**Arc kedua — akses kanal tanpa penjadwal terpusat.** Modul 01–07 di atas adalah satu seri utuh yang berakhir di M07. Modul 08 dan seterusnya membuka arc baru di atas Arduino Uno + Dragino LoRa Shield v1.2 (topologi sama seperti M05, dua node + satu gateway), yang sengaja **membalik** premis M05/M07: alih-alih menjadwalkan giliran bicara dari pusat, node dibiarkan mengirim data dummy suhu & kelembaban dua ruangan kapan saja, dan setiap pertemuan menambah **satu** lapisan kendali kanal — M08 (kirim bebas tanpa umpan balik sama sekali), M08B (ditambah ACK), M08C (ditambah random backoff + retry, dan gateway mulai mengenali paket duplicate lewat SEQ; barulah di sini ALOHA lengkap seperti yang dirumuskan Abramson), M09 (carrier sense: dengar dulu sebelum bicara), lalu M10 (SYNC + slot waktu, retry dihapus dan digantikan penjadwalan) yang menutup arc ini. Urutannya mengikuti sejarah protokol akses kanal: **ALOHA → CSMA → slot terjadwal**, dan yang bertambah tiap pertemuan adalah cara memperlakukan tabrakan — **dibiarkan → dideteksi → dipulihkan → dihindari → dicegah**:
+
+| Modul | Tabrakan diperlakukan bagaimana |
+|---|---|
+| M08 | dibiarkan, bahkan tidak terlihat |
+| M08B | dideteksi — ACK membuat kegagalan terbaca |
+| M08C | dipulihkan — retry dengan jeda acak |
+| M09 | dihindari sebelum terjadi — dengar dulu sebelum bicara |
+| M10 | dicegah secara struktural — tiap node punya jatah waktunya |
+
+Dua mode dibandingkan langsung pada M10, dan keduanya protokol yang berbeda: Random Slot adalah **Slotted ALOHA** yang sesungguhnya (tabrakan berkurang tapi belum hilang, throughput puncak ≈ 36,8 %), sedangkan Assigned Slot sudah menjadi **TDMA** — tiap node punya slot tetap, tabrakan hilang secara struktural. Detail lengkap tiap modul ada di README masing-masing folder.
 
 **Arc ketiga — protokol mengambil alih.** Modul 11 menutup pertanyaan yang menggantung sejak M04: semua yang dibangun sendiri di lapisan aplikasi — alamat node, ACK, nomor urut, retry, giliran bicara — sudah lama distandarkan orang lain, dan namanya LoRaWAN. Di modul ini kedua Arduino Uno menjalankan stack LoRaWAN Class A (MCCI LMIC) dan join lewat OTAA ke ChirpStack v4 yang berjalan di Raspberry Pi 5, dengan Pi yang sama merangkap **single channel gateway** memakai driver register lanjutan M06. Payload-nya sengaja dibiarkan sesederhana mungkin (`T=27.4,H=68`, ASCII, tanpa encoding) supaya perhatian tertuju pada alur Register Device → OTAA Join → Uplink → data terlihat di ChirpStack, bukan pada pengemasan byte. Dua hal baru yang tidak pernah muncul di sepuluh modul sebelumnya: payload terenkripsi sehingga **gateway sendiri tidak bisa membacanya**, dan alamat perangkat yang **diberikan server**, bukan ditentukan build flag.
 
@@ -242,8 +260,8 @@ Port             VID:PID      Jenis          Jembatan USB
 
 ```bash
 pio device list                                      # catat port tiap board
-pio run -d week01_lora_uart -e receiver -t upload    # penerima dahulu
-pio run -d week01_lora_uart -e sender   -t upload -t monitor
+pio run -d Modul01_lora_uart -e receiver -t upload    # penerima dahulu
+pio run -d Modul01_lora_uart -e sender   -t upload -t monitor
 ```
 
 **Modul 06 dan sisi master Modul 07 — Raspberry Pi, langsung dengan Python:**
@@ -252,12 +270,12 @@ pio run -d week01_lora_uart -e sender   -t upload -t monitor
 sudo raspi-config                                    # Interface Options > SPI > Yes, lalu reboot
 ls /dev/spi*                                         # harus muncul spidev0.0
 
-pip3 install -r week06_rpi_lora_python/requirements.txt
-python3 week06_rpi_lora_python/src/receiver.py       # penerima dahulu
-python3 week06_rpi_lora_python/src/sender.py         # di Pi kedua
+pip3 install -r Modul06_rpi_lora_python/requirements.txt
+python3 Modul06_rpi_lora_python/src/receiver.py       # penerima dahulu
+python3 Modul06_rpi_lora_python/src/sender.py         # di Pi kedua
 ```
 
-Tidak ada yang dikompilasi di sisi Raspberry Pi, sehingga tidak ada `platformio.ini` untuknya. `week07_rpi_master_slave/platformio.ini` hanya memuat kedua environment slave; masternya dijalankan sebagai `python3 src/master.py`.
+Tidak ada yang dikompilasi di sisi Raspberry Pi, sehingga tidak ada `platformio.ini` untuknya. `Modul07_rpi_master_slave/platformio.ini` hanya memuat kedua environment slave; masternya dijalankan sebagai `python3 src/master.py`.
 
 Port di tiap `platformio.ini` masih memakai nilai contoh untuk tiga Uno asli. Jalankan `tools/deteksi_port.py` lebih dahulu (lihat bagian sebelumnya), lalu sesuaikan `upload_port`/`monitor_port` sesuai board yang benar-benar terpasang.
 
@@ -267,7 +285,7 @@ Port di tiap `platformio.ini` masih memakai nilai contoh untuk tiga Uno asli. Ja
 
 ## Status verifikasi
 
-Seluruh modul Arduino dikompilasi ulang setelah dikonversi ke PlatformIO. Modul 05 dan Modul 07 sudah diuji langsung di perangkat keras (tiga Arduino Uno bershield Dragino, satu Raspberry Pi 5 bershield LoRa GPS HAT) — rincian sesi dan angka terukurnya ada di `week05_lora_master_slave/logserial.md` dan `week07_rpi_master_slave/logserial.md`. Modul 01–04 dan Modul 06 belum diuji ulang pada konversi ini; perilaku yang dijelaskan di README-nya berasal dari kode sumber asli beserta dokumentasinya, bukan dari pengamatan ulang. Modul 08, 08B, 09, dan 10 baru dikompilasi (`pio run`), **belum diuji di perangkat keras sama sekali** — belum ada log serial, belum ada RSSI/SNR nyata. Angka pada tabel pengukuran modul yang belum diuji tetap disediakan kosong untuk diisi praktikan.
+Seluruh modul Arduino dikompilasi ulang setelah dikonversi ke PlatformIO. Modul 05 dan Modul 07 sudah diuji langsung di perangkat keras (tiga Arduino Uno bershield Dragino, satu Raspberry Pi 5 bershield LoRa GPS HAT) — rincian sesi dan angka terukurnya ada di `Modul05_lora_master_slave/logserial.md` dan `Modul07_rpi_master_slave/logserial.md`. Modul 01–04 dan Modul 06 belum diuji ulang pada konversi ini; perilaku yang dijelaskan di README-nya berasal dari kode sumber asli beserta dokumentasinya, bukan dari pengamatan ulang. Modul 08, 08B, 09, dan 10 baru dikompilasi (`pio run`), **belum diuji di perangkat keras sama sekali** — belum ada log serial, belum ada RSSI/SNR nyata. Angka pada tabel pengukuran modul yang belum diuji tetap disediakan kosong untuk diisi praktikan.
 
 | Modul | Environment | Build | Flash (dari 32.256 B) |
 |---|---|---|---|
