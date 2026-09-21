@@ -11,6 +11,8 @@
 // sebagai satu keluarga.
 // ============================================================================
 
+#import "../config.typ": edisi_buku
+
 #let _callout(judul, warna, isi) = {
   set par(first-line-indent: 0em, justify: true)
   block(
@@ -42,7 +44,10 @@
 #let catatan(body) = _callout("CATATAN", rgb("#1D4ED8"), body)
 
 /// TODO — penanda bagian yang masih memerlukan keputusan/verifikasi dosen.
-#let todo(body) = _callout("TODO", rgb("#7C3AED"), body)
+/// Hanya dicetak pada edisi dosen (lihat config.typ).
+#let todo(body) = if edisi_buku == "dosen" {
+  _callout("TODO", rgb("#7C3AED"), body)
+}
 
 /// CHECKPOINT — syarat verifikasi yang harus dipenuhi sebelum melanjutkan ke
 /// tahap percobaan berikutnya. Dibuat berbeda dari callout lain (kotak penuh
