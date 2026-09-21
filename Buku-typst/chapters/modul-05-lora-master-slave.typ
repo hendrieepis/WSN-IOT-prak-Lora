@@ -344,11 +344,14 @@ Serial kedua slave.
 
 #keluaran("=== LoRa SLAVE 1 ===
 Init LoRa ... OK
+Freq: 433.00 MHz
 Menunggu POLL:1 dari Master...
 
-[RX] POLL:1 | RSSI: -36 dBm | SNR: 9.75 dB | RX#: 1
+[RX] POLL:1 | RSSI: -62 dBm | SNR: 9.00 dB | RX#: 1
 [TX] S1:DATA:1
-[IGNORE] POLL:2")
+
+[IGNORE] POLL:2
+[IGNORE] S2:DATA:1")
 
 *Data capture*
 
@@ -381,15 +384,15 @@ Amati master selama dua menit.
 *Expected output --- master*
 
 #keluaran("========================================
-=== CYCLE 4 ===
+=== CYCLE 8 ===
 [TX] POLL:1
-[RX] S1:DATA:4 | RSSI: -35 dBm | SNR: 9.50 dB
+[RX] S1:DATA:35 | RSSI: -58 dBm | SNR: 9.50 dB
 [TX] POLL:2
-[RX] S2:DATA:4 | RSSI: -41 dBm | SNR: 9.25 dB
+[RX] S2:DATA:8 | RSSI: -56 dBm | SNR: 9.75 dB
 --- STATISTIK ---
-S1: OK=4 | FAIL=0 | Data: 4
-S2: OK=4 | FAIL=0 | Data: 4
-Durasi siklus: 214 ms
+S1: OK=8 | FAIL=0 | Data: 35
+S2: OK=8 | FAIL=0 | Data: 8
+Durasi siklus: 148 ms
 ========================================")
 
 *Data capture*

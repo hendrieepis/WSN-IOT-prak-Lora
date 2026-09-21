@@ -321,8 +321,8 @@ Freq: 433.00 MHz | BW: 125.00 kHz | SF7
 Menunggu paket (non-blocking)...
 
 ================================
-[RX] Pesan : Hello #5
-[RX] RSSI  : -41 dBm
+[RX] Pesan : Hello #0
+[RX] RSSI  : -38 dBm
 [RX] SNR   : 9.50 dB
 ================================")
 

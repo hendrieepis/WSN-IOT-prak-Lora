@@ -346,8 +346,8 @@ Peran: NODE (ALOHA + ACK + Random Backoff + Retry)
   SEQ     : 0
   Ruang 1 : 28.4 C, 63 %
   Ruang 2 : 24.7 C, 71 %
-  RSSI    : -41.00 dBm
-  SNR     : 9.50 dB
+  RSSI    : -46 dBm
+  SNR     : 9.75 dB
   Statistik Node 1: baru=1 | duplicate=0 | gagal permanen (est.)=0
   [TX] ACK=1,SEQ=0
 =====================")

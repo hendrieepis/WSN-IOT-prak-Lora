@@ -305,20 +305,20 @@ Freq: 433.00 MHz
 ACK timeout: 2000 ms
 Peran: NODE (ALOHA + ACK) -- masih tanpa retry, lihat M08C
 
-[TX] NODE=1,SEQ=0,R1T=28.4,R1H=63,R2T=24.7,R2H=71
-[OK] ACK diterima | OK: 1 | FAIL: 0")
+[TX] NODE=1,SEQ=1,R1T=25.9,R1H=74,R2T=26.9,R2H=59
+[OK] ACK diterima | OK: 1 | FAIL: 1")
 
 *Expected output --- gateway*
 
 #keluaran("=== PAKET DITERIMA ===
-  Node    : 1
-  SEQ     : 0
-  Ruang 1 : 28.4 C, 63 %
-  Ruang 2 : 24.7 C, 71 %
-  RSSI    : -41.00 dBm
-  SNR     : 9.50 dB
-  Statistik Node 1: diterima=1 | perkiraan hilang=0
-  [TX] ACK=1,SEQ=0
+  Node    : 2
+  SEQ     : 1
+  Ruang 1 : 26.3 C, 45 %
+  Ruang 2 : 23.8 C, 80 %
+  RSSI    : -61 dBm
+  SNR     : 9.25 dB
+  Statistik Node 2: diterima=1 | perkiraan hilang=0
+  [TX] ACK=2,SEQ=1
 =====================")
 
 *Data capture* --- diukur 90 detik (bukan 10 siklus; lihat `logserial.md`).

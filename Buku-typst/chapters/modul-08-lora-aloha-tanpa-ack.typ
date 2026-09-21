@@ -320,23 +320,24 @@ apa pun.
 
 *Expected output --- node*
 
-#keluaran("=== LoRa PURE ALOHA - NODE 1 ===
+#keluaran("=== LoRa PURE ALOHA - NODE 2 ===
 Init LoRa ... OK
 Freq: 433.00 MHz
 Peran: NODE (Pure ALOHA) -- kirim bebas, tanpa ACK, tanpa retry
 
-[TX] NODE=1,SEQ=0,R1T=28.4,R1H=63,R2T=24.7,R2H=71 | total dikirim: 1")
+[TX] NODE=2,SEQ=0,R1T=26.5,R1H=54,R2T=22.6,R2H=55 | total dikirim: 1
+[TX] NODE=2,SEQ=1,R1T=24.8,R1H=58,R2T=22.7,R2H=59 | total dikirim: 2")
 
 *Expected output --- gateway*
 
 #keluaran("=== PAKET DITERIMA ===
-  Node    : 1
-  SEQ     : 0
-  Ruang 1 : 28.4 C, 63 %
-  Ruang 2 : 24.7 C, 71 %
-  RSSI    : -41.00 dBm
+  Node    : 2
+  SEQ     : 1
+  Ruang 1 : 24.8 C, 58 %
+  Ruang 2 : 22.7 C, 59 %
+  RSSI    : -58 dBm
   SNR     : 9.50 dB
-  Statistik Node 1: diterima=1 | perkiraan hilang=0
+  Statistik Node 2: diterima=1 | perkiraan hilang=0
 =====================")
 
 *Data capture* --- diukur 90 detik (bukan 5 menit; lihat `logserial.md` untuk

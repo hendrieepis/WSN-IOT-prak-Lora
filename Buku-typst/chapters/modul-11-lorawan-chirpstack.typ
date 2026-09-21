@@ -571,6 +571,7 @@ Menyusun JoinRequest OTAA ...
 [JOIN] BERHASIL
   DevAddr : 1EBD973
   NetID   : 0
+[TX] radio: 433175 kHz DR5
 [TX #1] FPort=1 \"T=25.0,H=66\" -> antre di LMIC
 [TX] selesai (FCntUp=1)")
 

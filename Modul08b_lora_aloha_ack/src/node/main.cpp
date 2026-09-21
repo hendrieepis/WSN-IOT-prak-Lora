@@ -7,7 +7,7 @@
   dummy dua ruangan kapan saja tanpa dengar-dahulu dan tanpa retry, TAPI kini
   menunggu balasan ACK dari gateway sebelum melanjutkan. Bedanya dengan M08
   hanya satu hal -- node akhirnya TAHU apakah paketnya sampai atau tidak.
-  Belum ada kirim ulang otomatis; itu baru datang di M09.
+  Belum ada kirim ulang otomatis; itu baru datang di M08C.
 
   Payload  : "NODE=<id>,SEQ=<n>,R1T=<c>,R1H=<pct>,R2T=<c>,R2H=<pct>"
   Balasan  : "ACK=<id>,SEQ=<n>"  -- id & SEQ harus cocok persis dengan yang dikirim
@@ -105,7 +105,7 @@ void setup() {
   Serial.println(F("OK"));
   Serial.print(F("Freq: ")); Serial.print(FREQUENCY / 1E6); Serial.println(F(" MHz"));
   Serial.print(F("ACK timeout: ")); Serial.print(ACK_TIMEOUT); Serial.println(F(" ms"));
-  Serial.println(F("Peran: NODE (ALOHA + ACK) -- masih tanpa retry, lihat M09\n"));
+  Serial.println(F("Peran: NODE (ALOHA + ACK) -- masih tanpa retry, lihat M08C\n"));
 }
 
 void loop() {

@@ -475,11 +475,11 @@ Freq: 433.00 MHz
 Carrier sense: RSSI (ambang -95 dBm) | DIFS 30 ms | slot 20 ms | CW 4..64
 Peran: NODE (CSMA/CA) -- dengar dulu, mundur acak, baru kirim
 Tanpa ACK: node tahu kanal sepi, tetap tidak tahu paketnya sampai
-[KALIBRASI] lantai derau 200 sampel: min -119 | rata-rata -112 | maks -104 dBm
+[KALIBRASI] lantai derau 200 sampel: min -117 | rata-rata -110 | maks -105 dBm
 [KALIBRASI] ambang terpakai sekarang: -95 dBm -- lihat EXP-01
 
-[TX] NODE=1,SEQ=0,T=28.4,H=70.6 | attempt=1 | tunda=30 ms
-[STAT] TX=1 | DROP=0 | kanal sibuk=0 | rata-rata tunda=30 ms")
+[TX] NODE=1,SEQ=0,T=27.1,H=70.5 | attempt=1 | tunda=31 ms
+[STAT] TX=1 | DROP=0 | kanal sibuk=0 | rata-rata tunda=31 ms")
 
 Ketika tetangganya sedang bicara:
 
@@ -493,13 +493,24 @@ Ketika tetangganya sedang bicara:
 #keluaran("=== PAKET DITERIMA ===
   Node    : 1
   SEQ     : 0
-  Suhu    : 28.4 C
-  Lembab  : 70.6 %
-  RSSI    : -41 dBm
-  SNR     : 9.50 dB
-  Selang  : 1843 ms dari paket sebelumnya
+  Suhu    : 27.1 C
+  Lembab  : 70.5 %
+  RSSI    : -45 dBm
+  SNR     : 9.25 dB
   Statistik Node 1: diterima=1 | perkiraan hilang=0
   Total diterima gateway: 1
+=====================
+
+=== PAKET DITERIMA ===
+  Node    : 2
+  SEQ     : 0
+  Suhu    : 27.1 C
+  Lembab  : 71.0 %
+  RSSI    : -55 dBm
+  SNR     : 9.50 dB
+  Selang  : 136 ms dari paket sebelumnya
+  Statistik Node 2: diterima=1 | perkiraan hilang=0
+  Total diterima gateway: 2
 =====================")
 
 *Data capture* --- amati 3 menit.

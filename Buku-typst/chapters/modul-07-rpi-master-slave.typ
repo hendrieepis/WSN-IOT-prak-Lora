@@ -535,14 +535,14 @@ seluruh node termasuk radionya) selama `master.py` berjalan, tunggu setidaknya
 
 *Expected output --- master, tepat setelah kabel dicabut*
 
-#keluaran("=== CYCLE 5 ===
+#keluaran("=== CYCLE 28 ===
 [TX] POLL:1
-[RX] S1:DATA:5 | RSSI: -70 dBm | SNR: 12.8 dB
+[RX] S1:DATA:27 | RSSI: -70 dBm | SNR: 13.0 dB
 [TX] POLL:2
 [FAIL] Slave 2 tidak merespon!
 --- STATISTIK ---
-S1: OK=5 | FAIL=0 | Data: 5
-S2: OK=0 | FAIL=5 | Data: None
+S1: OK=27 | FAIL=1 | Data: 27
+S2: OK=0 | FAIL=27 | Data: None
 Durasi siklus: 605 ms")
 
 *Data capture*

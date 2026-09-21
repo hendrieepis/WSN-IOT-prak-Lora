@@ -392,8 +392,11 @@ siklus.
 *Expected output --- node*
 
 #keluaran("=== LoRa SLOTTED ALOHA - NODE 1 ===
+Init LoRa ... OK
+Freq: 433.00 MHz
 Slot: 2 x 800 ms
 Mode : A (Random Slot) -- slot diundi tiap siklus
+Menunggu SYNC pertama dari gateway...
 
 [TX] cycle=0 slot=1 | NODE=1,SEQ=0,R1T=26.5,R1H=54,R2T=23.2,R2H=59
 [FAIL] Tidak ada ACK dalam slot ini | OK: 0 | FAIL: 1

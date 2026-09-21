@@ -311,11 +311,12 @@ Freq: 433.00 MHz | SF7 | ACK timeout: 3000 ms
 
 #keluaran("=== PAKET DITERIMA ===
   Data  : DATA:0
-  RSSI  : -39.00 dBm
-  SNR   : 9.75 dB
+  RSSI  : -32.00 dBm
+  SNR   : 9.00 dB
   Total : 1
 =====================
-[TX] ACK: ACK:0")
+[TX] ACK: ACK:0
+[RX] Menunggu paket berikutnya...")
 
 *Data capture*
 
@@ -348,8 +349,8 @@ Cabut USB penerima di tengah percobaan, amati pengirim, lalu pasang kembali.
 
 *Expected output --- sender saat penerima mati*
 
-#keluaran("[TX] Kirim: DATA:7 ... selesai
-[FAIL] Tidak ada ACK! | OK: 7 | FAIL: 1")
+#keluaran("[TX] Kirim: DATA:3 ... selesai
+[FAIL] Tidak ada ACK! | OK: 3 | FAIL: 1")
 
 *Data capture*
 

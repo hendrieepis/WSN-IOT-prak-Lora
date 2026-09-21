@@ -380,9 +380,14 @@ di kedua sisi.
 *Expected output --- receiver*
 
 #keluaran("--- Paket Diterima ---
-  Data  : \"Hello LoRa #12\"
-  RSSI  : -43 dBm
-  SNR   : 9.75 dB")
+  Data  : \"Hello LoRa #2\"
+  RSSI  : -55 dBm
+  SNR   : 9.50 dB
+
+--- Paket Diterima ---
+  Data  : \"Hello LoRa #3\"
+  RSSI  : -54 dBm
+  SNR   : 9.00 dB")
 
 *Data capture*
 
@@ -463,11 +468,11 @@ terbaca. Hasil uji ini terekam di `logserial.md`.
 Dijalankan pada dua Arduino Uno bershield Dragino LoRa v1.2, frekuensi 433 MHz,
 jarak #sym.plus.minus 30 cm. Log lengkap ada di `logserial.md`.
 
-#keluaran("[   1.84] TX | [TX] \"Hello LoRa #0\" ... terkirim
-[   1.84] RX | --- Paket Diterima ---
-[   1.87] RX | Data  : \"Hello LoRa #0\"
-[   1.90] RX | RSSI  : -41 dBm
-[   1.90] RX | SNR   : 9.00 dB")
+#keluaran("[   5.851] TX | [TX] \"Hello LoRa #2\" ... terkirim
+[   6.051] RX | --- Paket Diterima ---
+[   6.051] RX |   Data  : \"Hello LoRa #2\"
+[   6.051] RX |   RSSI  : -55 dBm
+[   6.051] RX |   SNR   : 9.50 dB")
 
 #tbl(
   table(

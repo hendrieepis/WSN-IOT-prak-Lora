@@ -288,12 +288,13 @@ Unggah kedua firmware sesuai urutan, lalu amati kedua Serial Monitor bersamaan.
 #keluaran("=== LoRa PEER-TO-PEER ===
 Init LoRa ... OK
 Freq  : 433.00 MHz
-Peran : INITIATOR (Device A)
+Peran : INITIATOR (Device A, env devicea)
 
 [TX] DeviceA:Ping
+
 ================================
 [RX] Pesan  : DeviceB:Pong
-[RX] RSSI   : -38 dBm
+[RX] RSSI   : -40 dBm
 [RX] SNR    : 9.75 dB
 ================================
 [TX] DeviceA:Ping")

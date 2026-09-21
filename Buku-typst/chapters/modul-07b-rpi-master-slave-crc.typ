@@ -296,12 +296,12 @@ Slave: Dragino Shield Uno - S1 & S2
 ========================================
 === CYCLE 1 ===
 [TX] POLL:1
-[RX] S1:DATA:1 | RSSI: -60 dBm | SNR: 14.2 dB
+[RX] S1:DATA:1 | RSSI: -72 dBm | SNR: 14.8 dB
 [TX] POLL:2
-[RX] S2:DATA:1 | RSSI: -58 dBm | SNR: 14.2 dB
+[RX] S2:DATA:38 | RSSI: -64 dBm | SNR: 14.5 dB
 --- STATISTIK ---
 S1: OK=1 | FAIL=0 | Data: 1
-S2: OK=1 | FAIL=0 | Data: 1
+S2: OK=1 | FAIL=0 | Data: 38
 Durasi siklus: 165 ms
 ========================================")
 
@@ -357,12 +357,12 @@ dan kedua serial slave di laptop lewat `lora_monitor.py`.
 #keluaran("========================================
 === CYCLE 40 ===
 [TX] POLL:1
-[RX] S1:DATA:40 | RSSI: -60 dBm | SNR: 14.0 dB
+[RX] S1:DATA:40 | RSSI: -72 dBm | SNR: 14.6 dB
 [TX] POLL:2
-[RX] S2:DATA:40 | RSSI: -58 dBm | SNR: 14.1 dB
+[RX] S2:DATA:77 | RSSI: -65 dBm | SNR: 14.6 dB
 --- STATISTIK ---
 S1: OK=40 | FAIL=0 | Data: 40
-S2: OK=40 | FAIL=0 | Data: 40
+S2: OK=40 | FAIL=0 | Data: 77
 Durasi siklus: 165 ms
 ========================================")
 
@@ -420,14 +420,14 @@ setidaknya 20 siklus, lalu pasang kembali.
 
 *Expected output --- master, tepat setelah kabel dicabut*
 
-#keluaran("=== CYCLE 5 ===
+#keluaran("=== CYCLE 28 ===
 [TX] POLL:1
-[RX] S1:DATA:5 | RSSI: -70 dBm | SNR: 12.8 dB
+[RX] S1:DATA:27 | RSSI: -70 dBm | SNR: 13.0 dB
 [TX] POLL:2
 [FAIL] Slave 2 tidak merespon!
 --- STATISTIK ---
-S1: OK=5 | FAIL=0 | Data: 5
-S2: OK=0 | FAIL=5 | Data: None
+S1: OK=27 | FAIL=1 | Data: 27
+S2: OK=0 | FAIL=27 | Data: None
 Durasi siklus: 605 ms")
 
 *Data capture*
