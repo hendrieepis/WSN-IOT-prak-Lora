@@ -8,65 +8,36 @@
 // ============================================================================
 
 #import "@preview/orange-book:0.7.1": book, chapter, appendices, update-heading-image
+#import "lib/cover.typ": cover-page
 
 #let warna-utama = rgb("#F36619")
 
 #show: book.with(
-  title: "Petunjuk Praktikum Komunikasi Jarak Jauh dengan LoRa",
-  subtitle: "LoRa mentah SX1276, ACK, master-slave, ALOHA, CSMA/CA, TDMA, dan LoRaWAN pada Arduino Uno dan Raspberry Pi",
+  // Blok judul bawaan template dinonaktifkan (title/subtitle/author kosong
+  // + latar transparan) karena halaman sampul digambar sendiri oleh
+  // lib/cover.typ. Judul, subjudul, dan penulis diisi di cover-page(...).
+  title: "",
+  subtitle: "",
+  author: "",
+  cover-background: rgb(0%, 0%, 0%, 0%),
+  cover: cover-page(
+    kicker: "LoRa Communication Lab · Buku Kerja Laboratorium",
+    // "\n" memaksa ganti baris sebelum "Komunikasi Jarak Jauh dengan".
+    title: "Petunjuk Praktikum\nKomunikasi Jarak Jauh dengan LoRa",
+    highlight: "LoRa",
+    // Subjudul mengikuti edisi buku di config.typ:
+    //   "dosen"     -> "... Buku Pegangan untuk Pengajar"
+    //   "mahasiswa" -> "... Buku Pegangan untuk Mahasiswa"
+    topics: ("LoRa P2P", "ACK", "Master-Slave", "ALOHA", "CSMA/CA", "TDMA", "LoRaWAN"),
+    // Ilustrasi tengah: chip untuk edisi dosen, topologi star untuk mahasiswa.
+    chip: ("LoRa", "SX1276", "Arduino Uno · RPi", "Sub-GHz · LoRaWAN"),
+    star: ("Gateway", "Raspberry Pi", "SX1276 · LoRaWAN", "Uno"),
+    author: "Akhmad Hendriawan",
+    publisher: "2026",
+  ),
   date: datetime(year: 2026, month: 9, day: 21),
-  author: "Akhmad Hendriawan",
   main-color: warna-utama,
   lang: "id",
-  // Sampul hanya menyediakan latar dan keterangan pelengkap. Judul, subjudul,
-  // dan nama penulis digambar oleh template `orange-book` sendiri sebagai pita
-  // di bagian tengah halaman, sehingga tidak boleh diulang di sini. Isi sampul
-  // dijaga tetap berada di atas dan di bawah pita tersebut (kira-kira 11 cm
-  // sampai 19 cm dari tepi atas).
-  cover: block(width: 100%, height: 100%, fill: rgb("#FDF1E7"), {
-    place(
-      top + left,
-      dx: 2.6cm,
-      dy: 2.6cm,
-      block(width: 15cm)[
-        #set par(justify: false)
-        #text(size: 1.1em, fill: warna-utama, weight: "bold", tracking: 0.18em)[
-          LoRa COMMUNICATION LAB
-        ]
-        #v(0.7em)
-        #block(width: 5.5cm, height: 5pt, fill: warna-utama)
-        #v(0.9em)
-        #text(size: 1.35em, fill: luma(55), weight: "medium")[
-          Buku kerja laboratorium \
-          komunikasi radio jarak jauh
-        ]
-        #v(1.1em)
-        #text(size: 1.05em, fill: luma(80))[
-          LoRa mentah · ACK · Master-Slave · ALOHA · CSMA/CA · TDMA · LoRaWAN
-        ]
-      ],
-    )
-    place(
-      bottom + left,
-      dx: 2.6cm,
-      dy: -2.8cm,
-      block(width: 15cm)[
-        #set par(justify: false)
-        #block(width: 5.5cm, height: 2pt, fill: warna-utama)
-        #v(0.8em)
-        #text(size: 1.05em, fill: luma(60))[
-          Arduino Uno · Raspberry Pi · SX1276 · 14 modul · 1 semester
-        ]
-        #v(0.7em)
-        #text(size: 1em, fill: luma(80))[
-          Departemen Teknik Elektro \
-          Politeknik Elektronika Negeri Surabaya
-        ]
-        #v(0.7em)
-        #text(size: 1em, fill: luma(95))[Edisi September 2026]
-      ],
-    )
-  }),
   list-of-figure-title: "Daftar Gambar",
   list-of-table-title: "Daftar Tabel",
   // Penomoran bab berjalan 1, 2, 3, … sedangkan label modul pada sumber tidak
