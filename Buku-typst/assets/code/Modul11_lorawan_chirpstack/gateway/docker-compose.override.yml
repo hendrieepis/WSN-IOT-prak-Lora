@@ -1,0 +1,24 @@
+# Modul 11 - penyesuaian chirpstack-docker untuk band EU433.
+#
+# Berkas ini DITARUH DI DALAM folder chirpstack-docker hasil clone, di samping
+# docker-compose.yml bawaannya. Docker Compose otomatis membaca
+# docker-compose.override.yml dan menggabungkannya -- repo resmi ChirpStack
+# tidak perlu diubah sama sekali, sehingga `git pull` di sana tetap bersih.
+#
+# YANG DIUBAH HANYA SATU HAL: awalan topik MQTT, dari eu868 menjadi eu433.
+#
+# Awalan itu bukan sekadar label. chirpstack-gateway-bridge menerbitkan tiap
+# uplink ke topik "<region>/gateway/<GatewayEUI>/event/up", dan dari awalan
+# itulah ChirpStack menyimpulkan rencana frekuensi mana yang berlaku bagi
+# gateway tersebut. Bila dibiarkan eu868 sementara radionya 433 MHz, uplink
+# tetap sampai tetapi ditolak dengan alasan frekuensi tidak dikenal.
+#
+# Region eu433 sendiri sudah aktif secara bawaan di chirpstack.toml bawaan
+# repo (lihat enabled_regions), jadi tidak ada yang perlu ditambahkan di sana.
+
+services:
+  chirpstack-gateway-bridge:
+    environment:
+      - INTEGRATION__MQTT__EVENT_TOPIC_TEMPLATE=eu433/gateway/{{ .GatewayID }}/event/{{ .EventType }}
+      - INTEGRATION__MQTT__STATE_TOPIC_TEMPLATE=eu433/gateway/{{ .GatewayID }}/state/{{ .StateType }}
+      - INTEGRATION__MQTT__COMMAND_TOPIC_TEMPLATE=eu433/gateway/{{ .GatewayID }}/command/#

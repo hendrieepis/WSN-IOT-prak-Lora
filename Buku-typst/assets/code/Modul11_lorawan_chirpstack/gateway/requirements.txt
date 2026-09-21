@@ -1,0 +1,19 @@
+# Modul 11 - dependensi Raspberry Pi (jalankan DI Raspberry Pi, bukan di PC)
+#
+#     pip3 install -r Modul11_lorawan_chirpstack/gateway/requirements.txt
+#
+# Bila pip menolak karena "externally-managed-environment" (Debian 12+/Pi OS
+# Bookworm ke atas), pasang lewat apt yang sudah disediakan Raspberry Pi OS:
+#     sudo apt install python3-spidev python3-rpi-lgpio python3-paho-mqtt
+#
+# spidev    : akses /dev/spidev0.0 untuk bicara ke SX1276           (packet forwarder)
+# rpi-lgpio : kendali NSS/RESET dan pembacaan DIO0                  (packet forwarder)
+# paho-mqtt : berlangganan uplink dari ChirpStack                   (uplink_listen.py)
+#
+# RASPBERRY PI 5. RPi.GPIO yang asli TIDAK bekerja di Pi 5 -- chip GPIO barunya
+# (RP1) tidak dikenali. rpi-lgpio adalah pengganti drop-in dengan nama modul
+# yang sama, sehingga `import RPi.GPIO as GPIO` tetap berjalan apa adanya.
+# Jangan memasang keduanya sekaligus: nama paketnya sama dan saling menimpa.
+spidev>=3.5
+rpi-lgpio>=0.6
+paho-mqtt>=1.6

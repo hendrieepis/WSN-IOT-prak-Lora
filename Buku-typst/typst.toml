@@ -1,0 +1,7 @@
+[package]
+name = "buku-praktikum-lora"
+version = "1.0.0"
+entrypoint = "main.typ"
+authors = ["Akhmad Hendriawan"]
+license = "CC-BY-NC-ND-4.0"
+description = "Petunjuk Praktikum Komunikasi Jarak Jauh dengan LoRa (Arduino Uno + Raspberry Pi) — konversi README modul ke Typst"

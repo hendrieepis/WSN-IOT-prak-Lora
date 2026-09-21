@@ -1,0 +1,51 @@
+# Modul 11 - menjalankan single_chan_pkt_fwd.py sebagai layanan systemd,
+# supaya gateway ikut hidup sendiri setiap Raspberry Pi dinyalakan.
+#
+# Berkas ini adalah TEMPLATE: __USER__ dan __DIR__ diisi oleh
+# siapkan_gateway.sh --service. Untuk memasang sendiri secara manual:
+#
+#     sed -e "s|__USER__|$USER|" -e "s|__DIR__|$PWD|" lorawan-gateway.service \
+#         | sudo tee /etc/systemd/system/lorawan-gateway.service
+#     sudo systemctl daemon-reload
+#     sudo systemctl enable --now lorawan-gateway
+#
+# Frekuensi dan alamat server TIDAK ditulis di sini, melainkan di
+# /etc/default/lorawan-gateway -- sehingga satu berkas unit yang sama dipakai
+# kelompok mana pun, dan mengubah kanal tidak perlu menyentuh systemd:
+#
+#     SERVER=192.168.1.45
+#     FREQ=433375000
+#     OPSI=
+#
+# Melihat keluarannya (pengganti terminal):   journalctl -fu lorawan-gateway
+
+[Unit]
+Description=LoRaWAN single channel gateway (Modul 11) - SX1276 ke ChirpStack
+Documentation=file://__DIR__/../README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+EnvironmentFile=/etc/default/lorawan-gateway
+
+# -u mematikan buffering Python, supaya tiap baris langsung masuk journal
+# dan bukan menumpuk sampai proses berhenti.
+#
+# $OPSI ditulis TANPA kurung kurawal: systemd memecahnya menjadi beberapa
+# argumen bila berisi lebih dari satu opsi, sedangkan ${SERVER} dan ${FREQ}
+# memakai kurawal karena masing-masing memang satu nilai utuh.
+ExecStart=/usr/bin/python3 -u single_chan_pkt_fwd.py --server ${SERVER} --freq ${FREQ} $OPSI
+
+# Radio bisa gagal diinisialisasi bila HAT belum siap saat boot; coba lagi
+# alih-alih menyerah. StartLimit menjaga supaya kegagalan permanen (HAT lepas,
+# SPI mati) tidak berubah menjadi loop tanpa henti.
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target
